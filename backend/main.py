@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,10 +9,22 @@ from core.config import settings
 
 logger = structlog.get_logger()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info(
+        "application_startup",
+        environment=settings.environment,
+    )
+    yield
+    logger.info("application_shutdown")
+
+
 app = FastAPI(
     title="AI Engineering Cloud Platform",
     version="0.1.0",
     description="Phase 1: Auth, Database, Health, Dashboard Backend",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -24,11 +38,9 @@ app.add_middleware(
 app.include_router(health_router)
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    logger.info("application_startup", environment=settings.environment)
-
-
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "AI Engineering Cloud Platform API", "status": "Phase 1"}
+    return {
+        "message": "AI Engineering Cloud Platform API",
+        "status": "Phase 1",
+    }
