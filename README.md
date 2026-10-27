@@ -1,5 +1,15 @@
 # AI Engineering Cloud Platform
 
+<div align="center">
+
+![AI Engineering Cloud Platform hero](./0440FF6D-F303-423D-9760-1CAFDCF56B8E.png)
+
+### AI Engineering — Cloud · Agents · RAG · MLOps
+
+<table><tr><td width="50%"><img src="./08CD1F7C-C8DA-4DC5-9310-DD9049ECBA9E.png" alt="AI Engineering visual 2" width="100%" /></td><td width="50%"><img src="./5BB3FDCC-EFC3-48E5-B018-D2D925714F45.png" alt="AI Engineering visual 3" width="100%" /></td></tr></table>
+
+</div>
+
 A standalone engineering portfolio project by Tamas Nemeth.
 
 ## Current state
