@@ -1,0 +1,34 @@
+import structlog
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from api.health import router as health_router
+from core.config import settings
+
+logger = structlog.get_logger()
+
+app = FastAPI(
+    title="AI Engineering Cloud Platform",
+    version="0.1.0",
+    description="Phase 1: Auth, Database, Health, Dashboard Backend",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(health_router)
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    logger.info("application_startup", environment=settings.environment)
+
+
+@app.get("/")
+async def root() -> dict[str, str]:
+    return {"message": "AI Engineering Cloud Platform API", "status": "Phase 1"}
