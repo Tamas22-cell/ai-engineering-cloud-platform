@@ -16,3 +16,4 @@ opentelemetry-sdk==1.27.0
 opentelemetry-instrumentation-fastapi==0.48b0
 pytest==8.3.3
 pytest-asyncio==0.24.0
+pwdlib[argon2]==0.3.1
