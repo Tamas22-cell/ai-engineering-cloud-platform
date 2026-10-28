@@ -44,3 +44,5 @@ async def root() -> dict[str, str]:
         "message": "AI Engineering Cloud Platform API",
         "status": "Phase 1",
     }
+from api.auth import router as auth_router
+app.include_router(auth_router)
