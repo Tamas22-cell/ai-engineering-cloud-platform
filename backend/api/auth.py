@@ -25,3 +25,20 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
         await db.rollback()
         raise HTTPException(status_code=409, detail='Email already registered')
     return user
+
+
+from schemas.auth import UserLogin, TokenResponse
+from core.security import verify_password, create_access_token
+
+
+@router.post('/login', response_model=TokenResponse)
+async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
+    email = data.email.strip().lower()
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is None or not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail='Invalid email or password')
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail='Account disabled')
+    token = create_access_token(user.id)
+    return TokenResponse(access_token=token)

@@ -13,3 +13,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return password_hasher.verify(hashed_password, plain_password)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
+
+
+from datetime import datetime, timedelta, timezone
+from jose import jwt
+from core.config import settings
+
+
+def create_access_token(user_id: str) -> str:
+    expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    payload = {'sub': user_id, 'exp': expires, 'type': 'access'}
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
