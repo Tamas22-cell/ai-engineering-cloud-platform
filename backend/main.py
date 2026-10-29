@@ -55,3 +55,9 @@ app.include_router(admin_router)
 app.include_router(agents_router)
 
 app.include_router(rag_router)
+
+from api.rag_upload import router as rag_upload_router
+app.include_router(rag_upload_router)
+
+from api.rag_documents import router as rag_documents_router
+app.include_router(rag_documents_router)
