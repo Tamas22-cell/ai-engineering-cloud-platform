@@ -15,6 +15,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 from core.config import settings
 from core.database import Base
 from models.user import User  # noqa: F401
+from models.audit_log import AuditLog  # noqa: F401
 
 config = context.config
 

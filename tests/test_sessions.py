@@ -78,6 +78,7 @@ def test_refresh_token_single_use():
         with (
             patch("api.auth.consume_refresh_token", side_effect=consume_once),
             patch("api.auth.save_refresh_token", new_callable=AsyncMock),
+            patch("api.auth.save_audit_event", new_callable=AsyncMock),
             TestClient(app) as client,
         ):
             first = client.post(

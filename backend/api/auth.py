@@ -1,3 +1,5 @@
+from core.audit import save_audit_event
+from core.audit import record_audit_event
 from core.dependencies import get_current_user
 from core.sessions import consume_refresh_token
 from core.sessions import is_refresh_token_active, revoke_refresh_token
@@ -45,12 +47,24 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(data.password, user.hashed_password):
+        await save_audit_event(
+            event_type="login_failed",
+            user_id=str(user.id) if user else None,
+        )
         raise HTTPException(status_code=401, detail='Invalid email or password')
     if not user.is_active:
+        await save_audit_event(
+            event_type="login_disabled",
+            user_id=str(user.id),
+        )
         raise HTTPException(status_code=403, detail='Account disabled')
     token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
     await save_refresh_token(refresh_token)
+    await save_audit_event(
+        event_type="login_success",
+        user_id=str(user.id),
+    )
     return TokenResponse(
         access_token=token,
         refresh_token=refresh_token,
@@ -103,6 +117,10 @@ async def refresh_access_token(
 
     new_refresh = create_refresh_token(user.id)
     await save_refresh_token(new_refresh)
+    await save_audit_event(
+        event_type="token_refresh_success",
+        user_id=str(user.id),
+    )
 
     return TokenResponse(
         access_token=create_access_token(user.id),
@@ -136,4 +154,8 @@ async def logout(
         )
 
     await revoke_refresh_token(payload["jti"])
+    await save_audit_event(
+        event_type="logout_success",
+        user_id=str(user.id),
+    )
     return {"message": "Logged out successfully"}
