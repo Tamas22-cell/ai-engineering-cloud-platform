@@ -1,4 +1,5 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from core.rate_limit import rate_limit
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,7 @@ from schemas.auth import UserRegister, UserResponse
 router = APIRouter(prefix='/auth', tags=['auth'])
 
 
-@router.post('/register', response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post('/register', response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit(3))])
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == data.email))
     if result.scalar_one_or_none() is not None:
@@ -31,7 +32,7 @@ from schemas.auth import UserLogin, TokenResponse
 from core.security import verify_password, create_access_token
 
 
-@router.post('/login', response_model=TokenResponse)
+@router.post('/login', response_model=TokenResponse, dependencies=[Depends(rate_limit(5))])
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     email = data.email.strip().lower()
     result = await db.execute(select(User).where(User.email == email))
