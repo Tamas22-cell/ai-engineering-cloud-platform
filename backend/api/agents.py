@@ -1,3 +1,4 @@
+from agents.gpt_tool_agent import run_gpt_tool_agent
 from fastapi import Depends, HTTPException
 from core.dependencies import get_current_user
 from agents.llm_agent import llm_agent
@@ -41,4 +42,26 @@ async def llm_chat(
         raise HTTPException(
             status_code=503,
             detail="LLM service unavailable",
+        )
+
+@router.post("/tool-chat", response_model=ChatResponse)
+async def tool_chat(
+    data: ChatRequest,
+    user = Depends(get_current_user),
+):
+    try:
+        result = await run_gpt_tool_agent(data.message)
+        return ChatResponse(response=str(result["messages"][-1].content))
+    except Exception as exc:
+        from langgraph.errors import GraphRecursionError
+
+        if isinstance(exc, GraphRecursionError):
+            raise HTTPException(
+                status_code=429,
+                detail="Agent step limit exceeded",
+            )
+
+        raise HTTPException(
+            status_code=503,
+            detail="AI tool service unavailable",
         )
