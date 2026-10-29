@@ -1,3 +1,4 @@
+from api.rag import router as rag_router
 from api.agents import router as agents_router
 from contextlib import asynccontextmanager
 
@@ -52,3 +53,5 @@ from api.admin import router as admin_router
 app.include_router(admin_router)
 
 app.include_router(agents_router)
+
+app.include_router(rag_router)
