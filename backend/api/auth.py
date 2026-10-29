@@ -1,3 +1,4 @@
+from core.dependencies import get_current_user
 from core.sessions import consume_refresh_token
 from core.sessions import is_refresh_token_active, revoke_refresh_token
 from schemas.auth import RefreshTokenRequest
@@ -62,43 +63,11 @@ bearer_scheme = HTTPBearer()
 
 
 @router.get('/me', response_model=UserResponse)
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: AsyncSession = Depends(get_db),
+async def read_current_user(
+    user: User = Depends(get_current_user),
 ):
-    try:
-        payload = jwt.decode(
-            credentials.credentials,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
-        )
-
-        if payload.get("type") != "access":
-            raise JWTError("Invalid token type")
-
-        user_id = payload.get("sub")
-        if not user_id:
-            raise JWTError("Missing user ID")
-
-    except JWTError:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
-    user = result.scalar_one_or_none()
-
-    if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=401,
-            detail="User not found or inactive",
-        )
-
     return user
+
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_access_token(
@@ -142,7 +111,10 @@ async def refresh_access_token(
 
 
 @router.post("/logout")
-async def logout(data: RefreshTokenRequest):
+async def logout(
+    data: RefreshTokenRequest,
+    user: User = Depends(get_current_user),
+):
     try:
         payload = jwt.decode(
             data.refresh_token,
@@ -153,6 +125,7 @@ async def logout(data: RefreshTokenRequest):
         if (
             payload.get("type") != "refresh"
             or not payload.get("jti")
+            or payload.get("sub") != str(user.id)
         ):
             raise JWTError("Invalid refresh token")
 
