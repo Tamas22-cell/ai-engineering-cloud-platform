@@ -61,3 +61,6 @@ app.include_router(rag_upload_router)
 
 from api.rag_documents import router as rag_documents_router
 app.include_router(rag_documents_router)
+
+from api.rag_index import router as rag_index_router
+app.include_router(rag_index_router)

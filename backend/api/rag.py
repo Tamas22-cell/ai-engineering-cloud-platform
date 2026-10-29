@@ -1,8 +1,10 @@
 ﻿from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.database import get_db
 from core.dependencies import get_current_user
-from rag.question_answering import RAGQuestionAnswering
+from rag.persistent_qa import PersistentRAGQuestionAnswering
 
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
@@ -17,12 +19,20 @@ class RAGAskRequest(BaseModel):
 async def ask_document(
     data: RAGAskRequest,
     user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        qa = RAGQuestionAnswering()
-        return await qa.ask(data.question, top_k=data.top_k)
-    except Exception:
+        qa = PersistentRAGQuestionAnswering()
+
+        return await qa.ask(
+            db=db,
+            user_id=str(user.id),
+            question=data.question,
+            top_k=data.top_k,
+        )
+
+    except Exception as exc:
         raise HTTPException(
             status_code=503,
             detail="RAG service unavailable",
-        )
+        ) from exc
