@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import RagView from './RagView';
 
 type ApiStatus = 'checking' | 'online' | 'offline';
 
@@ -90,7 +91,7 @@ export default function HomePage() {
             <Placeholder title="AI Agent Control Center" phase="Phase 3" />
           )}
           {active === 'rag' && (
-            <Placeholder title="RAG Knowledge System" phase="Phase 3" />
+            <RagView />
           )}
           {active === 'mlops' && (
             <Placeholder title="MLOps & Model Registry" phase="Phase 4" />
