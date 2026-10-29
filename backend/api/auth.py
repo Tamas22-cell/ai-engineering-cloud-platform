@@ -1,3 +1,9 @@
+from core.sessions import consume_refresh_token
+from core.sessions import is_refresh_token_active, revoke_refresh_token
+from schemas.auth import RefreshTokenRequest
+from jose import JWTError
+from core.sessions import save_refresh_token
+from core.security import create_refresh_token
 from core.rate_limit import rate_limit
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -42,7 +48,12 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=403, detail='Account disabled')
     token = create_access_token(user.id)
-    return TokenResponse(access_token=token)
+    refresh_token = create_refresh_token(user.id)
+    await save_refresh_token(refresh_token)
+    return TokenResponse(
+        access_token=token,
+        refresh_token=refresh_token,
+    )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from core.config import settings
@@ -88,3 +99,68 @@ async def get_current_user(
         )
 
     return user
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_access_token(
+    data: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        payload = jwt.decode(
+            data.refresh_token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+        )
+        if payload.get("type") != "refresh":
+            raise JWTError("Invalid token type")
+
+        user_id = payload.get("sub")
+        jti = payload.get("jti")
+        if not user_id or not jti:
+            raise JWTError("Missing token claims")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    if not await consume_refresh_token(data.refresh_token):
+        raise HTTPException(status_code=401, detail="Refresh token revoked or already used")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="Account unavailable")
+
+    await revoke_refresh_token(jti)
+
+    new_refresh = create_refresh_token(user.id)
+    await save_refresh_token(new_refresh)
+
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        refresh_token=new_refresh,
+    )
+
+
+@router.post("/logout")
+async def logout(data: RefreshTokenRequest):
+    try:
+        payload = jwt.decode(
+            data.refresh_token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+        )
+
+        if (
+            payload.get("type") != "refresh"
+            or not payload.get("jti")
+        ):
+            raise JWTError("Invalid refresh token")
+
+    except JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired refresh token",
+        )
+
+    await revoke_refresh_token(payload["jti"])
+    return {"message": "Logged out successfully"}

@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 class UserRegister(BaseModel):
     email: str = Field(min_length=5, max_length=320)
@@ -29,4 +29,9 @@ class UserLogin(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = 'bearer'
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str

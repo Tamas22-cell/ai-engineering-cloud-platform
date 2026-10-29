@@ -1,4 +1,4 @@
-﻿from argon2 import PasswordHasher
+from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
 
 password_hasher = PasswordHasher()
@@ -24,3 +24,20 @@ def create_access_token(user_id: str) -> str:
     expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
     payload = {'sub': user_id, 'exp': expires, 'type': 'access'}
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
+def create_refresh_token(user_id: str) -> str:
+    from uuid import uuid4
+
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    payload = {
+        "sub": str(user_id),
+        "exp": expires,
+        "type": "refresh",
+        "jti": str(uuid4()),
+    }
+    return jwt.encode(
+        payload,
+        settings.secret_key,
+        algorithm=settings.algorithm,
+    )
