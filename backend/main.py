@@ -46,3 +46,6 @@ async def root() -> dict[str, str]:
     }
 from api.auth import router as auth_router
 app.include_router(auth_router)
+
+from api.admin import router as admin_router
+app.include_router(admin_router)

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import Boolean, DateTime, String
@@ -39,6 +39,8 @@ class User(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+    role: Mapped[str] = mapped_column(String(20), default='viewer', nullable=False)
 
     def __repr__(self) -> str:
         return f"<User id={self.id}>"

@@ -67,3 +67,13 @@ def test_registration_short_password():
             email="test@example.com",
             password="123",
         )
+
+def test_auth_me_requires_token():
+    from fastapi.testclient import TestClient
+    from main import app
+
+    client = TestClient(app)
+    response = client.get("/auth/me")
+
+    assert response.status_code in (401, 403)
+    assert response.json()["detail"] == "Not authenticated"

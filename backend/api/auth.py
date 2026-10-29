@@ -42,3 +42,48 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=403, detail='Account disabled')
     token = create_access_token(user.id)
     return TokenResponse(access_token=token)
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import jwt, JWTError
+from core.config import settings
+
+bearer_scheme = HTTPBearer()
+
+
+@router.get('/me', response_model=UserResponse)
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+        )
+
+        if payload.get("type") != "access":
+            raise JWTError("Invalid token type")
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise JWTError("Missing user ID")
+
+    except JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=401,
+            detail="User not found or inactive",
+        )
+
+    return user
