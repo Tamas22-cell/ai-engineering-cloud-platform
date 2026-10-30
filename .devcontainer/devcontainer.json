@@ -1,9 +1,6 @@
 {
   "name": "AI Engineering Cloud Platform",
   "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-  },
   "forwardPorts": [
     8000,
     3000
@@ -20,7 +17,6 @@
       "visibility": "private"
     }
   },
-  "postCreateCommand": "python -m pip install -r backend/requirements.txt && npm --prefix frontend ci",
   "remoteEnv": {
     "PYTHONPATH": "${containerWorkspaceFolder}/backend"
   },
@@ -33,5 +29,6 @@
         "dbaeumer.vscode-eslint"
       ]
     }
-  }
+  },
+  "postCreateCommand": "python -m pip install -r backend/requirements.txt"
 }
