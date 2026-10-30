@@ -16,6 +16,8 @@ from core.config import settings
 from core.database import Base
 from models.user import User  # noqa: F401
 from models.audit_log import AuditLog  # noqa: F401
+from models.model_registry import RegisteredModel  # noqa: F401
+from models.model_run import ModelRun  # noqa: F401
 
 config = context.config
 
