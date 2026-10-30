@@ -48,5 +48,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r backend/requirements.txt
+      - run: python -m compileall -q backend tests
       - run: python -m alembic upgrade head
       - run: PYTHONPATH=backend pytest -q tests
