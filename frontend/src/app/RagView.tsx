@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 type DocumentItem = { id: string; filename: string; file_size: number; created_at: string };
 type AskResponse = Record<string, unknown>;
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export default function RagView() {
   const [token, setToken] = useState('');
