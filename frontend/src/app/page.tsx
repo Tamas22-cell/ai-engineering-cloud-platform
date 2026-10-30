@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import RagView from './RagView';
+import AgentsView from './AgentsView';
 
 type ApiStatus = 'checking' | 'online' | 'offline';
 
@@ -87,9 +88,7 @@ export default function HomePage() {
 
         <main className="flex-1 p-4 md:p-6 overflow-auto">
           {active === 'overview' && <OverviewView />}
-          {active === 'agents' && (
-            <Placeholder title="AI Agent Control Center" phase="Phase 3" />
-          )}
+          {active === 'agents' && <AgentsView />}
           {active === 'rag' && (
             <RagView />
           )}
