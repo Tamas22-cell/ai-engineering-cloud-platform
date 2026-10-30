@@ -1,5 +1,6 @@
 import asyncio
 import structlog
+from openai import AuthenticationError, PermissionDeniedError, RateLimitError, APIConnectionError, APIStatusError
 
 from agents.gpt_tool_agent import run_gpt_tool_agent
 from fastapi import Depends, HTTPException
@@ -45,6 +46,24 @@ async def llm_chat(
             timeout=30,
         )
         return ChatResponse(response=result["response"])
+    except AuthenticationError:
+        logger.error("llm_agent_auth_failed")
+        raise HTTPException(status_code=503, detail="OpenAI API authentication failed. Check OPENAI_API_KEY on Render.")
+    except PermissionDeniedError:
+        logger.error("llm_agent_permission_denied")
+        raise HTTPException(status_code=503, detail="OpenAI project does not permit this model or operation.")
+    except RateLimitError:
+        logger.warning("llm_agent_rate_limited")
+        raise HTTPException(status_code=503, detail="OpenAI rate limit or API quota reached. Check API billing and usage.")
+    except APIConnectionError:
+        logger.error("llm_agent_connection_error")
+        raise HTTPException(status_code=503, detail="Cannot connect to OpenAI API.")
+    except APIStatusError as exc:
+        logger.error("llm_agent_api_status", status_code=exc.status_code)
+        raise HTTPException(status_code=503, detail=f"OpenAI API returned HTTP {exc.status_code}.")
+    except RuntimeError:
+        logger.error("llm_agent_not_configured")
+        raise HTTPException(status_code=503, detail="OpenAI API key is not configured on Render.")
     except TimeoutError:
         logger.warning("llm_agent_timeout", timeout_seconds=30)
         raise HTTPException(status_code=504, detail="LLM request timed out")
