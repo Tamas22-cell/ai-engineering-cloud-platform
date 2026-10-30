@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import RagView from './RagView';
 import AgentsView from './AgentsView';
+import MlopsView from './MlopsView';
 
 type ApiStatus = 'checking' | 'online' | 'offline';
 
@@ -93,7 +94,7 @@ export default function HomePage() {
             <RagView />
           )}
           {active === 'mlops' && (
-            <Placeholder title="MLOps & Model Registry" phase="Phase 4" />
+            <MlopsView />
           )}
           {active === 'data' && (
             <Placeholder title="Data Engineering" phase="Phase 4" />
