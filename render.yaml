@@ -1,0 +1,21 @@
+# Render Blueprint: API only; connect managed PostgreSQL (with pgvector) and Redis separately.
+# Review service costs and provision external dependencies before activating.
+services:
+  - type: web
+    name: ai-engineering-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    healthCheckPath: /health/live
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://ai-engineering-cloud-platform.vercel.app
