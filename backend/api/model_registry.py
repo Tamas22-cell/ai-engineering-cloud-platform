@@ -10,6 +10,7 @@ from core.dependencies import get_current_user
 from core.rbac import require_role
 from models.model_registry import RegisteredModel
 from models.model_run import ModelRun
+from mlops.metrics import summarize_metrics
 
 router = APIRouter(prefix="/mlops/models", tags=["MLOps"])
 
@@ -124,3 +125,31 @@ async def list_runs(
         .order_by(ModelRun.created_at.desc()).limit(limit)
     )
     return list(rows.scalars().all())
+
+
+@router.get("/{model_id}/metrics/{metric_name}/summary")
+async def metric_summary(
+    model_id: str,
+    metric_name: str,
+    threshold: float | None = Query(default=None),
+    direction: str = Query(default="below", pattern="^(below|above)$"),
+    limit: int = Query(default=50, ge=1, le=500),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if await db.get(RegisteredModel, model_id) is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    rows = await db.execute(
+        select(ModelRun.metric_value)
+        .where(ModelRun.model_id == model_id, ModelRun.metric_name == metric_name)
+        .order_by(ModelRun.created_at.desc(), ModelRun.id.desc())
+        .limit(limit)
+    )
+    values = list(reversed(rows.scalars().all()))
+    if not values:
+        raise HTTPException(status_code=404, detail="No metrics recorded")
+    try:
+        return {"model_id": model_id, "metric_name": metric_name,
+                **summarize_metrics(values, threshold=threshold, direction=direction)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
