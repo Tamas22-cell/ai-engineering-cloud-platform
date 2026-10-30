@@ -29,6 +29,5 @@
         "dbaeumer.vscode-eslint"
       ]
     }
-  },
-  "postCreateCommand": "python -m pip install -r backend/requirements.txt"
+  }
 }
