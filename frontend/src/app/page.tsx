@@ -123,64 +123,50 @@ function OverviewView() {
   const [databaseStatus, setDatabaseStatus] = useState('Unknown');
 
   useEffect(() => {
-    const controller = new AbortController();
-
+    let active = true;
     async function checkBackend() {
       try {
-        const response = await fetch(`${API_URL}/health/ready`, {
-          signal: controller.signal,
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const data: HealthResponse = await response.json();
-
-        if (data.status === 'ready' && data.database === 'connected') {
-          setApiStatus('online');
-          setDatabaseStatus('Connected');
-        } else {
-          setApiStatus('offline');
-          setDatabaseStatus(data.database ?? 'Unknown');
-        }
-      } catch (error) {
-        if (controller.signal.aborted) return;
-
-        console.error('Backend health check failed:', error);
+        const live = await fetch(`${API_URL}/health/live`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+        if (!active) return;
+        if (!live.ok) throw new Error(`HTTP ${live.status}`);
+        setApiStatus('online');
+      } catch {
+        if (!active) return;
         setApiStatus('offline');
         setDatabaseStatus('Unavailable');
+        return;
+      }
+
+      try {
+        const ready = await fetch(`${API_URL}/health/ready`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+        if (!active) return;
+        const data: HealthResponse = await ready.json();
+        setDatabaseStatus(ready.ok && data.status === 'ready' && data.database === 'connected' ? 'Connected' : 'Not ready');
+      } catch {
+        if (active) setDatabaseStatus('Unavailable');
       }
     }
 
     void checkBackend();
-
-    const interval = window.setInterval(() => {
-      void checkBackend();
-    }, 15000);
-
-    return () => {
-      controller.abort();
-      window.clearInterval(interval);
-    };
+    const interval = window.setInterval(() => void checkBackend(), 15000);
+    return () => { active = false; window.clearInterval(interval); };
   }, []);
 
   const modules = [
     {
       title: 'AI Agent Orchestration',
       detail: 'Tool calling, workflow orchestration, guardrails',
-      state: 'Planned',
+      state: 'Implemented in repository · runtime unverified',
     },
     {
       title: 'RAG & Knowledge Retrieval',
-      detail: 'Ingestion, embeddings, citations, evaluation',
-      state: 'Planned',
+      detail: 'Upload, chunking, indexing and retrieval API; evaluation not verified',
+      state: 'Implemented in repository · runtime unverified',
     },
     {
       title: 'MLOps',
-      detail: 'Model registry, experiment tracking, drift monitoring',
-      state: 'Local prototype',
+      detail: 'Registry, runs, metric summaries and threshold checks; drift monitoring pending',
+      state: 'Implemented in repository · runtime unverified',
     },
     {
       title: 'Data Pipelines',
@@ -189,8 +175,8 @@ function OverviewView() {
     },
     {
       title: 'Cloud & CI/CD',
-      detail: 'GitHub Actions, Docker, Kubernetes, Terraform',
-      state: 'In progress',
+      detail: 'GitHub Actions and Docker configs; Kubernetes / Terraform not verified',
+      state: 'In progress · CI result unverified',
     },
     {
       title: 'Observability',
@@ -199,8 +185,8 @@ function OverviewView() {
     },
     {
       title: 'Security & Access',
-      detail: 'Authentication, RBAC, least privilege',
-      state: 'Unverified',
+      detail: 'JWT authentication and RBAC implemented; production access tests pending',
+      state: 'Implemented in repository · production unverified',
     },
     {
       title: 'FinOps',
@@ -218,10 +204,10 @@ function OverviewView() {
 
   const platformDetail =
     apiStatus === 'online'
-      ? `FastAPI · PostgreSQL ${databaseStatus}`
+      ? `FastAPI reachable · PostgreSQL: ${databaseStatus}`
       : apiStatus === 'checking'
         ? 'Connecting to backend...'
-        : 'Backend unavailable or database not ready';
+        : 'FastAPI unreachable from this browser';
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -235,9 +221,9 @@ function OverviewView() {
         </h2>
 
         <p className="text-[#B8C6D6] mt-3 leading-relaxed">
-          Public development preview. Local FastAPI and database health
-          are checked live when available. AI agents, production metrics,
-          cloud credentials and monitoring are not yet connected.
+          Public frontend deployed on Vercel. Backend liveness and database readiness
+          are checked separately. Agent, RAG and MLOps code exists in GitHub;
+          production API integrations and monitoring remain unverified.
         </p>
 
         <a
@@ -260,8 +246,8 @@ function OverviewView() {
 
         <MetricCard
           label="Live AI agents"
-          value="Not linked"
-          detail="Requires agent runtime and API setup"
+          value="Code available"
+          detail={apiStatus === 'online' ? 'Backend reachable · agent requests not verified' : 'Agent API implemented · backend offline'}
           accent="violet"
         />
 
@@ -274,8 +260,8 @@ function OverviewView() {
 
         <MetricCard
           label="Authorization / RBAC"
-          value="Unverified"
-          detail="No production access tests"
+          value="Implemented"
+          detail="JWT/RBAC in code · production access unverified"
           accent="amber"
         />
       </div>
