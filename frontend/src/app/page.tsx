@@ -126,7 +126,7 @@ function OverviewView() {
     let active = true;
     async function checkBackend() {
       try {
-        const live = await fetch(`${API_URL}/health/live`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+        const live = await fetch('/backend/health/live', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
         if (!active) return;
         if (!live.ok) throw new Error(`HTTP ${live.status}`);
         setApiStatus('online');
@@ -138,7 +138,7 @@ function OverviewView() {
       }
 
       try {
-        const ready = await fetch(`${API_URL}/health/ready`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+        const ready = await fetch('/backend/health/ready', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
         if (!active) return;
         const data: HealthResponse = await ready.json();
         setDatabaseStatus(ready.ok && data.status === 'ready' && data.database === 'connected' ? 'Connected' : 'Not ready');
