@@ -1,3 +1,5 @@
+import asyncio
+
 from agents.gpt_tool_agent import run_gpt_tool_agent
 from fastapi import Depends, HTTPException
 from core.dependencies import get_current_user
@@ -33,11 +35,16 @@ async def llm_chat(
     user = Depends(get_current_user),
 ):
     try:
-        result = await llm_agent.ainvoke({
-            "message": data.message,
-            "response": "",
-        })
+        result = await asyncio.wait_for(
+            llm_agent.ainvoke({
+                "message": data.message,
+                "response": "",
+            }),
+            timeout=30,
+        )
         return ChatResponse(response=result["response"])
+    except TimeoutError:
+        raise HTTPException(status_code=504, detail="LLM request timed out")
     except Exception:
         raise HTTPException(
             status_code=503,
@@ -50,8 +57,10 @@ async def tool_chat(
     user = Depends(get_current_user),
 ):
     try:
-        result = await run_gpt_tool_agent(data.message)
+        result = await asyncio.wait_for(run_gpt_tool_agent(data.message), timeout=30)
         return ChatResponse(response=str(result["messages"][-1].content))
+    except TimeoutError:
+        raise HTTPException(status_code=504, detail="AI tool request timed out")
     except Exception as exc:
         from langgraph.errors import GraphRecursionError
 
