@@ -64,3 +64,6 @@ app.include_router(rag_documents_router)
 
 from api.rag_index import router as rag_index_router
 app.include_router(rag_index_router)
+
+from api.model_registry import router as model_registry_router
+app.include_router(model_registry_router)
