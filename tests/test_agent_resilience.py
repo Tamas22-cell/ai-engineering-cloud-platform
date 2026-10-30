@@ -1,5 +1,4 @@
 """Regression tests for AI agent timeout and error handling."""
-import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +11,7 @@ import api.agents as agent_api
 async def test_llm_agent_timeout(monkeypatch):
     async def timeout(_state):
         raise TimeoutError()
-    monkeypatch.setattr(agent_api.llm_agent, "ainvoke", timeout)
+    monkeypatch.setattr(agent_api, "llm_agent", SimpleNamespace(ainvoke=timeout))
     with pytest.raises(HTTPException) as exc:
         await agent_api.llm_chat(agent_api.ChatRequest(message="test"), user=object())
     assert exc.value.status_code == 504
@@ -22,7 +21,7 @@ async def test_llm_agent_timeout(monkeypatch):
 async def test_llm_agent_unavailable(monkeypatch):
     async def failure(_state):
         raise RuntimeError("hidden-key-value")
-    monkeypatch.setattr(agent_api.llm_agent, "ainvoke", failure)
+    monkeypatch.setattr(agent_api, "llm_agent", SimpleNamespace(ainvoke=failure))
     with pytest.raises(HTTPException) as exc:
         await agent_api.llm_chat(agent_api.ChatRequest(message="test"), user=object())
     assert exc.value.status_code == 503
