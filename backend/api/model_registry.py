@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from math import isfinite
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +9,7 @@ from core.database import get_db
 from core.dependencies import get_current_user
 from core.rbac import require_role
 from models.model_registry import RegisteredModel
+from models.model_run import ModelRun
 
 router = APIRouter(prefix="/mlops/models", tags=["MLOps"])
 
@@ -72,3 +74,53 @@ async def update_stage(
     await db.commit()
     await db.refresh(model)
     return model
+
+
+class RunCreate(BaseModel):
+    metric_name: str = Field(min_length=1, max_length=80)
+    metric_value: float
+    duration_ms: int = Field(default=0, ge=0)
+
+
+class RunRead(BaseModel):
+    model_config = {"from_attributes": True}
+    id: str
+    model_id: str
+    metric_name: str
+    metric_value: float
+    duration_ms: int
+
+
+@router.post("/{model_id}/runs", response_model=RunRead, status_code=201)
+async def record_run(
+    model_id: str,
+    data: RunCreate,
+    user=Depends(require_role("admin", "developer")),
+    db: AsyncSession = Depends(get_db),
+):
+    if not isfinite(data.metric_value):
+        raise HTTPException(status_code=422, detail="Metric must be finite")
+    model = await db.get(RegisteredModel, model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    run = ModelRun(model_id=model_id, created_by=str(user.id), **data.model_dump())
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+    return run
+
+
+@router.get("/{model_id}/runs", response_model=list[RunRead])
+async def list_runs(
+    model_id: str,
+    limit: int = Query(50, ge=1, le=100),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if await db.get(RegisteredModel, model_id) is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    rows = await db.execute(
+        select(ModelRun).where(ModelRun.model_id == model_id)
+        .order_by(ModelRun.created_at.desc()).limit(limit)
+    )
+    return list(rows.scalars().all())
