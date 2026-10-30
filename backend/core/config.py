@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     environment: str = "local"
     log_level: str = "INFO"
     openai_api_key: str = ""
+    cors_origins: str = "http://localhost:3000,https://ai-engineering-cloud-platform.vercel.app"
 
 
 settings = Settings()
