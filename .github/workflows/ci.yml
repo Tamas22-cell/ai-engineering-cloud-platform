@@ -50,4 +50,12 @@ jobs:
       - run: pip install -r backend/requirements.txt
       - run: python -m compileall -q backend tests
       - run: python -m alembic upgrade head
-      - run: PYTHONPATH=backend pytest -q tests
+      - name: Run backend tests with JUnit report
+        run: PYTHONPATH=backend pytest -q tests --junitxml=pytest-results.xml
+      - name: Upload backend test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-pytest-results
+          path: pytest-results.xml
+          if-no-files-found: warn
