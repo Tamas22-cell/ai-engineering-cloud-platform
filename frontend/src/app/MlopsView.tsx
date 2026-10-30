@@ -41,7 +41,8 @@ export default function MlopsView() {
         cache: 'no-store',
       });
       if (!response.ok) throw new Error(`Model run API: HTTP ${response.status}`);
-      setRuns(previous => ({ ...previous, [modelId]: (await response.json()) as ModelRun[] }));
+      const data = (await response.json()) as ModelRun[];
+      setRuns(previous => ({ ...previous, [modelId]: data }));
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'A metrikák nem elérhetők.');
@@ -56,7 +57,8 @@ export default function MlopsView() {
         { headers: { Authorization: `Bearer ${token.trim()}` }, cache: 'no-store' }
       );
       if (!response.ok) throw new Error(`Metric summary: HTTP ${response.status}`);
-      setSummaries(previous => ({ ...previous, [modelId]: (await response.json()) as MetricSummary }));
+      const data = (await response.json()) as MetricSummary;
+      setSummaries(previous => ({ ...previous, [modelId]: data }));
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'A metrika nem elérhető.');
