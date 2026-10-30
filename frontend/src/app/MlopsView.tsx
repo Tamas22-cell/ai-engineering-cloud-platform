@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+type MetricSummary = { metric_name: string; latest: number; average: number; delta: number; threshold: number | null; alert: boolean; count: number };
 type ModelRun = { id: string; metric_name: string; metric_value: number; duration_ms: number }; 
 type Model = { id: string; name: string; version: string; framework: string; stage: string };
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
@@ -12,6 +13,7 @@ export default function MlopsView() {
   const [error, setError] = useState('');
   const [runs, setRuns] = useState<Record<string, ModelRun[]>>({});
   const [loading, setLoading] = useState(false);
+  const [summaries, setSummaries] = useState<Record<string, MetricSummary>>({});
 
   async function loadModels() {
     setError('');
@@ -46,6 +48,21 @@ export default function MlopsView() {
     }
   }
 
+  async function loadSummary(modelId: string) {
+    try {
+      if (!token.trim()) throw new Error('JWT token szükséges.');
+      const response = await fetch(
+        `${API}/mlops/models/${encodeURIComponent(modelId)}/metrics/accuracy/summary?threshold=0.8&direction=below`,
+        { headers: { Authorization: `Bearer ${token.trim()}` }, cache: 'no-store' }
+      );
+      if (!response.ok) throw new Error(`Metric summary: HTTP ${response.status}`);
+      setSummaries(previous => ({ ...previous, [modelId]: (await response.json()) as MetricSummary }));
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'A metrika nem elérhető.');
+    }
+  }
+
   return <section className="max-w-4xl space-y-5">
     <h2 className="text-xl font-semibold">MLOps / Model Registry</h2>
     <p className="text-sm text-[#9AA3AE]">Verziózott modellek és deployment stage-ek a FastAPI backendről. Nem demo-adatok.</p>
@@ -60,7 +77,7 @@ export default function MlopsView() {
     <div className="overflow-x-auto rounded-xl border border-white/10">
       <table className="w-full text-left text-sm">
         <thead className="bg-white/5"><tr><th className="p-3">Modell</th><th className="p-3">Verzió</th><th className="p-3">Framework</th><th className="p-3">Stage</th><th className="p-3">Metrikák</th></tr></thead>
-        <tbody>{models.map(m => <tr key={m.id} className="border-t border-white/10"><td className="p-3">{m.name}</td><td className="p-3">{m.version}</td><td className="p-3">{m.framework}</td><td className="p-3">{m.stage}</td><td className="p-3"><button className="underline text-cyan-300" onClick={() => loadRuns(m.id)}>Futások</button>{runs[m.id] && <div className="mt-2 text-xs">{runs[m.id].length ? runs[m.id].map(run => <p key={run.id}>{run.metric_name}: {run.metric_value} ({run.duration_ms} ms)</p>) : "Nincs rögzített futás"}</div>}</td></tr>)}</tbody>
+        <tbody>{models.map(m => <tr key={m.id} className="border-t border-white/10"><td className="p-3">{m.name}</td><td className="p-3">{m.version}</td><td className="p-3">{m.framework}</td><td className="p-3">{m.stage}</td><td className="p-3"><button className="underline text-cyan-300" onClick={() => loadRuns(m.id)}>Futások</button><button className="ml-3 underline text-cyan-300" onClick={() => loadSummary(m.id)}>Accuracy trend</button>{summaries[m.id] && <div className="mt-2 text-xs"><p>Legutóbbi: {summaries[m.id].latest.toFixed(3)} · Átlag: {summaries[m.id].average.toFixed(3)} · Változás: {summaries[m.id].delta.toFixed(3)}</p><p className={summaries[m.id].alert ? 'text-red-300' : 'text-emerald-300'}>{summaries[m.id].alert ? 'Figyelmeztetés: accuracy 0.8 alatt' : 'Nincs accuracy riasztás'}</p></div>}{runs[m.id] && <div className="mt-2 text-xs">{runs[m.id].length ? runs[m.id].map(run => <p key={run.id}>{run.metric_name}: {run.metric_value} ({run.duration_ms} ms)</p>) : "Nincs rögzített futás"}</div>}</td></tr>)}</tbody>
       </table>
     </div>
     {!models.length && !loading && <p className="text-sm text-[#9AA3AE]">Nincs betöltött modell. Az adatokat a backendről kell lekérni.</p>}
