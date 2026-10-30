@@ -1,6 +1,6 @@
 ﻿import io
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -18,6 +18,7 @@ def client():
     app.include_router(router)
 
     db = AsyncMock()
+    db.add = MagicMock()
 
     async def fake_db():
         yield db

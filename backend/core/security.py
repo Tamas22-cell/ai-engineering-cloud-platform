@@ -16,7 +16,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 from datetime import datetime, timedelta, timezone
-from jose import jwt
+import jwt
 from core.config import settings
 
 

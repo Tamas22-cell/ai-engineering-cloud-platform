@@ -13,7 +13,7 @@ from core.security import create_access_token, create_refresh_token
 def test_logout_revokes_refresh_token():
     token = create_refresh_token(str(uuid4()))
 
-    from jose import jwt
+    import jwt
     from core.config import settings
 
     user_id = jwt.decode(
@@ -24,11 +24,7 @@ def test_logout_revokes_refresh_token():
     async def fake_user():
         return SimpleNamespace(id=user_id, is_active=True)
 
-    logout_route = next(
-        route for route in app.routes
-        if route.path == "/auth/logout"
-    )
-    logout_dependency = logout_route.dependant.dependencies[0].call
+    logout_dependency = get_current_user
     app.dependency_overrides[logout_dependency] = fake_user
     try:
         with patch(

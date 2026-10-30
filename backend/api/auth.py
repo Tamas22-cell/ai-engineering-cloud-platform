@@ -4,7 +4,7 @@ from core.dependencies import get_current_user
 from core.sessions import consume_refresh_token
 from core.sessions import is_refresh_token_active, revoke_refresh_token
 from schemas.auth import RefreshTokenRequest
-from jose import JWTError
+from jwt.exceptions import InvalidTokenError as JWTError
 from core.sessions import save_refresh_token
 from core.security import create_refresh_token
 from core.rate_limit import rate_limit
@@ -70,7 +70,8 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
         refresh_token=refresh_token,
     )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import InvalidTokenError as JWTError
 from core.config import settings
 
 bearer_scheme = HTTPBearer()

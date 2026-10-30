@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 import redis.asyncio as redis
-from jose import jwt
+import jwt
 
 from core.config import settings
 
@@ -41,7 +41,7 @@ async def revoke_refresh_token(jti: str) -> None:
 
 
 async def is_refresh_token_active(token: str) -> bool:
-    from jose import JWTError
+    from jwt.exceptions import InvalidTokenError
 
     try:
         payload = jwt.decode(
@@ -49,7 +49,7 @@ async def is_refresh_token_active(token: str) -> bool:
             settings.secret_key,
             algorithms=[settings.algorithm],
         )
-    except JWTError:
+    except InvalidTokenError:
         return False
 
     if (
@@ -70,7 +70,7 @@ async def is_refresh_token_active(token: str) -> bool:
 
 
 async def consume_refresh_token(token: str) -> bool:
-    from jose import JWTError
+    from jwt.exceptions import InvalidTokenError
 
     try:
         payload = jwt.decode(
@@ -78,7 +78,7 @@ async def consume_refresh_token(token: str) -> bool:
             settings.secret_key,
             algorithms=[settings.algorithm],
         )
-    except JWTError:
+    except InvalidTokenError:
         return False
 
     if (

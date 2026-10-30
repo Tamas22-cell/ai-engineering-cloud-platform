@@ -1,7 +1,7 @@
 
 import pytest
 from pydantic import ValidationError
-from jose import jwt
+import jwt
 
 from core.config import settings
 from core.security import (
