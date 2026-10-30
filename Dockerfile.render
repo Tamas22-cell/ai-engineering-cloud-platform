@@ -7,4 +7,4 @@ COPY backend /app/backend
 COPY migrations /app/migrations
 COPY alembic.ini /app/alembic.ini
 EXPOSE 10000
-CMD ["sh", "-c", "uvicorn main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-10000}"]
+CMD ["sh", "-c", "if [ -n \"${DATABASE_URL:-}\" ]; then python -m alembic upgrade head || exit 1; fi; exec uvicorn main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-10000}"]
