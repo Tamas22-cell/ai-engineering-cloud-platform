@@ -1,5 +1,6 @@
 ﻿import numpy as np
-from sqlalchemy import select
+from sqlalchemy import select, text
+import json
 
 from models.document import Document
 from models.document_chunk import DocumentChunk
@@ -29,6 +30,26 @@ async def search_stored_documents(
 
     if query_norm == 0:
         raise ValueError("Query embedding cannot be zero")
+
+    # Native pgvector executes top-k cosine ranking inside PostgreSQL.
+    # Other dialects retain the existing NumPy implementation for tests.
+    dialect = getattr(getattr(getattr(db, "bind", None), "dialect", None), "name", None)
+    if dialect == "postgresql" and query.size == 1536:
+        result = await db.execute(text("""
+            SELECT c.document_id, d.filename AS source, c.page,
+                   c.chunk_number AS chunk, c.text,
+                   1 - (c.embedding_vector <=> CAST(:vector AS vector(1536))) AS score
+            FROM document_chunks c
+            JOIN documents d ON d.id = c.document_id
+            WHERE d.user_id = :user_id AND c.embedding_vector IS NOT NULL
+            ORDER BY c.embedding_vector <=> CAST(:vector AS vector(1536))
+            LIMIT :top_k
+        """), {
+            "user_id": user_id,
+            "vector": json.dumps(query.tolist()),
+            "top_k": top_k,
+        })
+        return [dict(row) for row in result.mappings().all()]
 
     statement = (
         select(DocumentChunk, Document.filename)
