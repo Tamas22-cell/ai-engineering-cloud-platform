@@ -114,3 +114,21 @@ async def test_multi_agent_uncited_answer_not_verified(monkeypatch):
     )
     assert result["verified"] is False
     assert result["answer"] == "A válasz nem tartalmaz ellenőrizhető forráshivatkozást."
+
+
+@pytest.mark.asyncio
+async def test_multi_agent_rejects_blank_question_without_api_calls(monkeypatch):
+    embedding = AsyncMock()
+    generator = AsyncMock()
+    search = AsyncMock()
+    monkeypatch.setattr(multi_agent, "search_stored_documents", search)
+
+    with pytest.raises(ValueError, match="Question cannot be empty"):
+        await multi_agent.run_multi_agent_rag(
+            object(), "user-123", "   ",
+            embedding_service=embedding, answer_generator=generator,
+        )
+
+    embedding.embed_texts.assert_not_awaited()
+    search.assert_not_awaited()
+    generator.generate_answer.assert_not_awaited()
