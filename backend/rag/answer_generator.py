@@ -3,7 +3,7 @@
 
 class RAGAnswerGenerator:
     def __init__(self, client=None):
-        self.client = client or AsyncOpenAI()
+        self.client = client if client is not None else AsyncOpenAI(max_retries=2, timeout=20.0)
 
     async def generate_answer(
         self,
