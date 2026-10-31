@@ -48,7 +48,7 @@ async def save_document_chunks(
 
         # Keep the existing JSON representation for backwards compatibility.
         # On PostgreSQL, also populate the indexed native vector column.
-        if getattr(getattr(db, 'bind', None), 'dialect', None) is not None and db.bind.dialect.name == 'postgresql':
+        if db.get_bind().dialect.name == 'postgresql':
             await db.flush()
             for chunk, embedding in zip(chunks, embeddings):
                 if len(embedding) != 1536:
