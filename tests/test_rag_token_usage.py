@@ -21,6 +21,7 @@ async def test_generator_reports_actual_token_usage():
         "input_tokens": 120,
         "output_tokens": 30,
         "total_tokens": 150,
+        "estimated_cost_usd": None,
     }
 
 
