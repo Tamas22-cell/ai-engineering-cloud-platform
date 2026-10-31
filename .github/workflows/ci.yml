@@ -19,6 +19,8 @@ jobs:
       - run: npm run build
   backend:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/aiplatform
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -49,6 +51,30 @@ jobs:
           python-version: '3.12'
       - run: pip install -r backend/requirements.txt
       - run: python -m compileall -q backend tests
+      - name: Verify pgvector is installed in the CI PostgreSQL server
+        run: |
+          python - <<'PY'
+          import asyncio
+          import asyncpg
+
+          async def check():
+              connection = await asyncpg.connect(
+                  "postgresql://postgres:postgres@localhost:5432/aiplatform"
+              )
+              try:
+                  available = await connection.fetchval(
+                      "SELECT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector')"
+                  )
+                  if not available:
+                      raise RuntimeError(
+                          "pgvector extension is missing from CI PostgreSQL image"
+                      )
+                  print("pgvector extension available")
+              finally:
+                  await connection.close()
+
+          asyncio.run(check())
+          PY
       - run: python -m alembic upgrade head
       - name: Run backend tests with JUnit report
         run: PYTHONPATH=backend pytest -q tests --junitxml=pytest-results.xml
