@@ -12,17 +12,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.health import router as health_router
 from core.config import settings
+from core.langfuse_tracing import configure_langfuse
 
 logger = structlog.get_logger()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    tracer_provider = configure_langfuse()
     logger.info(
         "application_startup",
         environment=settings.environment,
     )
     yield
+    if tracer_provider is not None:
+        tracer_provider.shutdown()
     logger.info("application_shutdown")
 
 
