@@ -113,3 +113,4 @@ async def test_multi_agent_uncited_answer_not_verified(monkeypatch):
         embedding_service=embedding, answer_generator=generator,
     )
     assert result["verified"] is False
+    assert result["answer"] == "A válasz nem tartalmaz ellenőrizhető forráshivatkozást."
