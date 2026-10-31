@@ -8,6 +8,7 @@ from rag.persistent_search import search_stored_documents
 
 def make_db(rows):
     db = AsyncMock()
+    db.bind = None  # Explicit non-PostgreSQL mock; never infer dialect from AsyncMock
     result = MagicMock()
     result.all.return_value = rows
     db.execute.return_value = result
