@@ -54,7 +54,16 @@ class RAGAnswerGenerator:
             ),
         )
 
+        usage = getattr(response, "usage", None)
+        input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
+        output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
         return {
             "answer": response.output_text,
             "sources": sources,
+            "usage": {
+                "model": "gpt-4.1-mini",
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+            },
         }
