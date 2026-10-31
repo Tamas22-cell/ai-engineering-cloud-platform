@@ -3,7 +3,7 @@
 
 class EmbeddingService:
     def __init__(self, client: AsyncOpenAI | None = None):
-        self.client = client or AsyncOpenAI()
+        self.client = client if client is not None else AsyncOpenAI(max_retries=2, timeout=20.0)
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
