@@ -9,7 +9,7 @@ from rag.persistent_search import search_stored_documents
 @pytest.mark.asyncio
 async def test_pgvector_query_uses_tenant_filter_and_top_k():
     db = AsyncMock()
-    db.get_bind = MagicMock(return_value=SimpleNamespace(dialect=SimpleNamespace(name="postgresql")))
+    db.bind = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
     result = MagicMock()
     result.mappings.return_value.all.return_value = [{
         "document_id": "doc-1",
