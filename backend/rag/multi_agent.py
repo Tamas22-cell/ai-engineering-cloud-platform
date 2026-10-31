@@ -3,6 +3,7 @@
 The caller supplies an authenticated user's database session. Retrieval is always
 scoped to that user; documents are treated as data, never instructions.
 """
+import asyncio
 import re
 from typing import TypedDict
 
@@ -111,7 +112,7 @@ async def run_multi_agent_rag(
     if not isinstance(question, str) or not question.strip():
         raise ValueError("Question cannot be empty")
     graph = build_multi_agent_rag(db, user_id, embedding_service, answer_generator)
-    result = await graph.ainvoke({
+    result = await asyncio.wait_for(graph.ainvoke({
         "question": question,
         "top_k": top_k,
         "query": "",
@@ -119,7 +120,7 @@ async def run_multi_agent_rag(
         "answer": "",
         "sources": [],
         "verified": False,
-    })
+    }), timeout=60)
     return {
         "answer": result["answer"],
         "sources": result["sources"],
