@@ -8,6 +8,7 @@ import re
 from typing import TypedDict
 
 from langgraph.graph import StateGraph, START, END
+from opentelemetry import trace
 
 from rag.embedding_service import EmbeddingService
 from rag.persistent_search import search_stored_documents
@@ -114,7 +115,9 @@ async def run_multi_agent_rag(
     if not isinstance(question, str) or not question.strip():
         raise ValueError("Question cannot be empty")
     graph = build_multi_agent_rag(db, user_id, embedding_service, answer_generator)
-    result = await asyncio.wait_for(graph.ainvoke({
+    with trace.get_tracer("ai-engineering.rag").start_as_current_span("rag.multi_agent") as span:
+        span.set_attribute("rag.top_k", top_k)
+        result = await asyncio.wait_for(graph.ainvoke({
         "question": question,
         "top_k": top_k,
         "query": "",
@@ -123,7 +126,9 @@ async def run_multi_agent_rag(
         "sources": [],
         "verified": False,
         "usage": {},
-    }), timeout=60)
+        }), timeout=60)
+        span.set_attribute("rag.verified", bool(result["verified"]))
+        span.set_attribute("rag.total_tokens", int(result.get("usage", {}).get("total_tokens", 0)))
     return {
         "answer": result["answer"],
         "sources": result["sources"],
