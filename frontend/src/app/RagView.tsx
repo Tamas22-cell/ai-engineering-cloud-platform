@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 type DocumentItem = { id: string; filename: string; file_size: number; created_at: string };
-type AskResponse = Record<string, unknown>;
+type AskResponse = { answer: string; sources: { id: number; source: string; page: number }[]; verified?: boolean };
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export default function RagView() {
@@ -58,20 +58,20 @@ export default function RagView() {
 
   async function ask() {
     if (!question.trim()) { setMessage('Írj be egy kérdést.'); return; }
-    const data = await request('/rag/ask', {
+    const data = await request('/rag/multi-agent/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: question.trim(), top_k: 5 }),
     });
     setAnswer(data);
-    setMessage('AI-válasz megérkezett.');
+    setMessage(data.verified ? 'Forráshivatkozásokkal ellenőrzött válasz.' : 'AI-válasz megérkezett; a források ellenőrzése nem sikerült.');
   }
 
   return (
     <section className="max-w-4xl space-y-5">
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-        <h2 className="text-xl font-semibold">RAG Knowledge System</h2>
-        <p className="mt-2 text-sm text-slate-400">PDF feltöltés, PostgreSQL-alapú indexelés és dokumentumokra épülő AI-kérdezés.</p>
+        <h2 className="text-xl font-semibold">Multi-Agent RAG Knowledge System</h2>
+        <p className="mt-2 text-sm text-slate-400">PDF feltöltés, dokumentumindexelés és LangGraph Multi-Agent RAG: Planner → Retriever → Synthesizer → Reviewer.</p>
         <label className="mt-5 block text-sm text-slate-300" htmlFor="rag-token">Hozzáférési token (csak ebben az ablakban, nem mentjük el)</label>
         <input id="rag-token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)}
           placeholder="JWT access token" className="mt-2 w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm text-white" />
@@ -100,7 +100,7 @@ export default function RagView() {
           className="mt-3 w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm text-white" />
         <button type="button" disabled={busy || !token.trim() || !question.trim()} onClick={() => void run(ask)}
           className="mt-3 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium disabled:opacity-40">Kérdezés</button>
-        {answer && <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-lg bg-black/30 p-4 text-sm text-slate-200">{JSON.stringify(answer, null, 2)}</pre>}
+        {answer && <div className="mt-4 space-y-3 rounded-lg bg-black/30 p-4 text-sm text-slate-200"><p className="whitespace-pre-wrap">{answer.answer}</p><p className={answer.verified ? 'text-green-300' : 'text-amber-300'}>{answer.verified ? 'Forráshivatkozások ellenőrizve' : 'Nem igazolt válasz – ellenőrizd a dokumentumokat'}</p><ul className="space-y-1">{(answer.sources ?? []).map(source => <li key={source.id}>[{source.id}] {source.source}, {source.page}. oldal</li>)}</ul></div>}
       </div>
       <p role="status" aria-live="polite" className="text-sm text-cyan-300">{busy ? 'Feldolgozás...' : message}</p>
     </section>
