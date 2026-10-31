@@ -1,4 +1,5 @@
-﻿from sqlalchemy import delete, select
+﻿from sqlalchemy import delete, select, text
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.document import Document
@@ -45,6 +46,24 @@ async def save_document_chunks(
                 )
             )
 
+        # Keep the existing JSON representation for backwards compatibility.
+        # On PostgreSQL, also populate the indexed native vector column.
+        if getattr(getattr(db, 'bind', None), 'dialect', None) is not None and db.bind.dialect.name == 'postgresql':
+            await db.flush()
+            for chunk, embedding in zip(chunks, embeddings):
+                if len(embedding) != 1536:
+                    raise ValueError('Expected 1536-dimensional OpenAI embedding')
+                await db.execute(text('''
+                    UPDATE document_chunks
+                    SET embedding_vector = CAST(:vector AS vector(1536))
+                    WHERE document_id = :document_id
+                      AND page = :page AND chunk_number = :chunk_number
+                '''), {
+                    'vector': json.dumps(embedding),
+                    'document_id': document_id,
+                    'page': chunk['page'],
+                    'chunk_number': chunk['chunk'],
+                })
         await db.commit()
     except Exception:
         await db.rollback()
