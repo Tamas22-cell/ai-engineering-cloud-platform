@@ -81,6 +81,12 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
                 "sources": trusted_sources,
                 "verified": False,
             }
+        if documents and not cited:
+            return {
+                "answer": "A válasz nem tartalmaz ellenőrizhető forráshivatkozást.",
+                "sources": trusted_sources,
+                "verified": False,
+            }
         return {"sources": trusted_sources, "verified": verified}
 
     graph = StateGraph(RAGState)
