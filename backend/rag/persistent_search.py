@@ -33,7 +33,7 @@ async def search_stored_documents(
 
     # Native pgvector executes top-k cosine ranking inside PostgreSQL.
     # Other dialects retain the existing NumPy implementation for tests.
-    dialect = db.get_bind().dialect.name if hasattr(db, "get_bind") else getattr(getattr(getattr(db, "bind", None), "dialect", None), "name", None)
+    dialect = getattr(getattr(getattr(db, "bind", None), "dialect", None), "name", None)
     if dialect == "postgresql" and query.size == 1536:
         result = await db.execute(text("""
             SELECT c.document_id, d.filename AS source, c.page,
