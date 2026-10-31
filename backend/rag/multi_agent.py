@@ -22,6 +22,7 @@ class RAGState(TypedDict):
     answer: str
     sources: list[dict]
     verified: bool
+    usage: dict
 
 
 def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_generator=None):
@@ -57,9 +58,10 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
             return {
                 "answer": "A feltöltött dokumentumokban nem található releváns információ.",
                 "sources": [],
+                "usage": {},
             }
         result = await generator.generate_answer(state["question"], state["documents"])
-        return {"answer": result["answer"], "sources": result["sources"]}
+        return {"answer": result["answer"], "sources": result["sources"], "usage": result.get("usage", {})}
 
     async def reviewer(state: RAGState):
         # The generator's source metadata is untrusted: reconstruct it from
@@ -120,9 +122,11 @@ async def run_multi_agent_rag(
         "answer": "",
         "sources": [],
         "verified": False,
+        "usage": {},
     }), timeout=60)
     return {
         "answer": result["answer"],
         "sources": result["sources"],
         "verified": result["verified"],
+        "usage": result.get("usage", {}),
     }
