@@ -65,6 +65,7 @@ async def test_multi_agent_rag_empty_results(monkeypatch):
     )
     assert result["verified"] is False
     assert result["sources"] == []
+    generator.generate_answer.assert_not_awaited()
 
 
 @pytest.mark.asyncio
