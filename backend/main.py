@@ -3,6 +3,10 @@ from api.agents import router as agents_router
 from contextlib import asynccontextmanager
 
 import structlog
+from time import perf_counter
+from uuid import uuid4
+
+from fastapi import Request
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,6 +32,35 @@ app = FastAPI(
     description="Phase 1: Auth, Database, Health, Dashboard Backend",
     lifespan=lifespan,
 )
+
+
+
+@app.middleware("http")
+async def request_observability(request: Request, call_next):
+    """Log request metadata only; never log tokens, prompts or document contents."""
+    request_id = str(uuid4())
+    start = perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "http_request_failed",
+            request_id=request_id,
+            method=request.method,
+            route=request.scope.get("route").path if request.scope.get("route") else "unmatched",
+            duration_ms=round((perf_counter() - start) * 1000, 2),
+        )
+        raise
+    logger.info(
+        "http_request_completed",
+        request_id=request_id,
+        method=request.method,
+        route=request.scope.get("route").path if request.scope.get("route") else "unmatched",
+        status_code=response.status_code,
+        duration_ms=round((perf_counter() - start) * 1000, 2),
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 app.add_middleware(
     CORSMiddleware,
