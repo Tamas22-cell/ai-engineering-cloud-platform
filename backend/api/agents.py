@@ -100,3 +100,46 @@ async def tool_chat(
             status_code=503,
             detail="AI tool service unavailable",
         )
+from uuid import UUID, uuid4
+from agents.planner_executor_reviewer import run_planner_executor_reviewer
+
+
+class WorkflowRequest(BaseModel):
+    task: str = Field(min_length=1, max_length=4000)
+    thread_id: UUID | None = None
+
+
+class WorkflowResponse(BaseModel):
+    thread_id: UUID
+    response: str
+
+
+@router.post("/workflow", response_model=WorkflowResponse)
+async def workflow_chat(
+    data: WorkflowRequest,
+    user=Depends(get_current_user),
+):
+    thread_id = data.thread_id or uuid4()
+
+    try:
+        result = await asyncio.wait_for(
+            run_planner_executor_reviewer(
+                task=data.task,
+                thread_id=str(thread_id),
+            ),
+            timeout=60,
+        )
+        return WorkflowResponse(
+            thread_id=thread_id,
+            response=result["final_answer"],
+        )
+    except TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="AI workflow timed out",
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="AI workflow unavailable",
+        )
