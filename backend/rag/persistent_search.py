@@ -1,5 +1,6 @@
 ﻿import numpy as np
 from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 import json
 
 from models.document import Document
@@ -33,7 +34,7 @@ async def search_stored_documents(
 
     # Native pgvector executes top-k cosine ranking inside PostgreSQL.
     # Other dialects retain the existing NumPy implementation for tests.
-    dialect = getattr(getattr(getattr(db, "bind", None), "dialect", None), "name", None)
+    dialect = db.get_bind().dialect.name if isinstance(db, AsyncSession) else getattr(getattr(getattr(db, "bind", None), "dialect", None), "name", None)
     if dialect == "postgresql" and query.size == 1536:
         result = await db.execute(text("""
             SELECT c.document_id, d.filename AS source, c.page,
