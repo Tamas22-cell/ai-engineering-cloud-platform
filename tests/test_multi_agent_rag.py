@@ -161,3 +161,39 @@ async def test_multi_agent_times_out_and_cancels_stalled_graph(monkeypatch):
     with pytest.raises(TimeoutError):
         await multi_agent.run_multi_agent_rag(object(), "user-123", "Kérdés")
     assert cancelled.is_set()
+
+
+@pytest.mark.asyncio
+async def test_multi_agent_propagates_token_usage(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    generator.generate_answer.return_value = {
+        "answer": "Tény [1].",
+        "sources": [],
+        "usage": {"model": "gpt-4.1-mini", "input_tokens": 12, "output_tokens": 3, "total_tokens": 15},
+    }
+    monkeypatch.setattr(
+        multi_agent, "search_stored_documents",
+        AsyncMock(return_value=[{"source": "source.pdf", "page": 1, "text": "Tény"}]),
+    )
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Kérdés",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["verified"] is True
+    assert result["usage"]["total_tokens"] == 15
+
+
+@pytest.mark.asyncio
+async def test_multi_agent_empty_results_have_no_generation_usage(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    monkeypatch.setattr(multi_agent, "search_stored_documents", AsyncMock(return_value=[]))
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Kérdés",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["usage"] == {}
+    generator.generate_answer.assert_not_awaited()
