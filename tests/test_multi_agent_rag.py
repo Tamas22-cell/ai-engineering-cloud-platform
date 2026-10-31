@@ -132,3 +132,32 @@ async def test_multi_agent_rejects_blank_question_without_api_calls(monkeypatch)
     embedding.embed_texts.assert_not_awaited()
     search.assert_not_awaited()
     generator.generate_answer.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_multi_agent_times_out_and_cancels_stalled_graph(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    cancelled = asyncio.Event()
+
+    async def stalled_graph(_state):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    monkeypatch.setattr(
+        multi_agent, "build_multi_agent_rag",
+        lambda *args, **kwargs: SimpleNamespace(ainvoke=stalled_graph),
+    )
+    original_wait_for = asyncio.wait_for
+
+    async def fast_timeout(awaitable, timeout):
+        assert timeout == 60
+        return await original_wait_for(awaitable, timeout=0.01)
+
+    monkeypatch.setattr(multi_agent.asyncio, "wait_for", fast_timeout)
+    with pytest.raises(TimeoutError):
+        await multi_agent.run_multi_agent_rag(object(), "user-123", "Kérdés")
+    assert cancelled.is_set()
