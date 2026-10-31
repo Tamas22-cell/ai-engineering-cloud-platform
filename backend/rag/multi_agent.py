@@ -108,6 +108,8 @@ async def run_multi_agent_rag(
 ):
     if not 1 <= top_k <= 20:
         raise ValueError("top_k must be between 1 and 20")
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("Question cannot be empty")
     graph = build_multi_agent_rag(db, user_id, embedding_service, answer_generator)
     result = await graph.ainvoke({
         "question": question,
