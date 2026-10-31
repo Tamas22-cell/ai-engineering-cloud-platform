@@ -7,6 +7,7 @@ from rag.chunk_repository import save_document_chunks
 
 def mock_db_with_owner(owned=True):
     db = AsyncMock()
+    db.bind = None  # Explicit non-PostgreSQL mock; never infer dialect from AsyncMock
     result = MagicMock()
     result.scalar_one_or_none.return_value = (
         "doc-1" if owned else None
