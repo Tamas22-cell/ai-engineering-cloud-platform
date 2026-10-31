@@ -65,3 +65,50 @@ async def test_multi_agent_rag_empty_results(monkeypatch):
     )
     assert result["verified"] is False
     assert result["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_multi_agent_ignores_fabricated_source_metadata(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    generator.generate_answer.return_value = {
+        "answer": "Az adat megtalálható [1].",
+        "sources": [{"id": 1, "source": "invented.pdf", "page": 999}],
+    }
+    monkeypatch.setattr(
+        multi_agent, "search_stored_documents",
+        AsyncMock(return_value=[{
+            "source": "real.pdf", "page": 3, "text": "Az adat"
+        }]),
+    )
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Kérdés",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["verified"] is True
+    assert result["sources"] == [
+        {"id": 1, "source": "real.pdf", "page": 3}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_multi_agent_uncited_answer_not_verified(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    generator.generate_answer.return_value = {
+        "answer": "Hivatkozás nélküli válasz.",
+        "sources": [{"id": 1, "source": "real.pdf", "page": 3}],
+    }
+    monkeypatch.setattr(
+        multi_agent, "search_stored_documents",
+        AsyncMock(return_value=[{
+            "source": "real.pdf", "page": 3, "text": "Az adat"
+        }]),
+    )
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Kérdés",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["verified"] is False
