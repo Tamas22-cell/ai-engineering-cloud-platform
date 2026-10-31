@@ -55,17 +55,27 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
         return {"answer": result["answer"], "sources": result["sources"]}
 
     async def reviewer(state: RAGState):
-        # Reject invented source IDs; an unsupported answer cannot be marked verified.
-        valid = {str(source["id"]) for source in state["sources"]}
+        # The generator's source metadata is untrusted: reconstruct it from
+        # the retrieved, user-scoped documents before accepting citations.
+        documents = state["documents"]
+        trusted_sources = [
+            {
+                "id": index,
+                "source": str(doc.get("source", "unknown")),
+                "page": doc.get("page", "?"),
+            }
+            for index, doc in enumerate(documents, start=1)
+        ]
+        valid = {str(source["id"]) for source in trusted_sources}
         cited = set(re.findall(r"\[(\d+)\]", state["answer"]))
+        verified = bool(documents and cited and cited.issubset(valid))
         if cited - valid:
             return {
                 "answer": "A válasz nem ellenőrizhető a rendelkezésre álló forrásokból.",
+                "sources": trusted_sources,
                 "verified": False,
             }
-        if state["documents"] and not cited:
-            return {"verified": False}
-        return {"verified": bool(state["documents"] and cited)}
+        return {"sources": trusted_sources, "verified": verified}
 
     graph = StateGraph(RAGState)
     graph.add_node("planner", planner)
