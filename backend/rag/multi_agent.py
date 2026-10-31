@@ -51,6 +51,12 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
         return {"documents": docs}
 
     async def synthesizer(state: RAGState):
+        # No source evidence: do not spend tokens or invite an ungrounded answer.
+        if not state["documents"]:
+            return {
+                "answer": "A feltöltött dokumentumokban nem található releváns információ.",
+                "sources": [],
+            }
         result = await generator.generate_answer(state["question"], state["documents"])
         return {"answer": result["answer"], "sources": result["sources"]}
 
