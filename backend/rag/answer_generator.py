@@ -1,4 +1,7 @@
-﻿from openai import AsyncOpenAI
+﻿import os
+from decimal import Decimal, InvalidOperation
+
+from openai import AsyncOpenAI
 
 
 class RAGAnswerGenerator:
@@ -57,6 +60,20 @@ class RAGAnswerGenerator:
         usage = getattr(response, "usage", None)
         input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
         output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
+        # Rates are configured in USD per million tokens, not hardcoded.
+        cost_usd = None
+        try:
+            input_rate = os.getenv("OPENAI_INPUT_USD_PER_1M")
+            output_rate = os.getenv("OPENAI_OUTPUT_USD_PER_1M")
+            if input_rate is not None and output_rate is not None and usage is not None:
+                input_price = Decimal(input_rate)
+                output_price = Decimal(output_rate)
+                if input_price < 0 or output_price < 0:
+                    raise ValueError("Negative token rate")
+                cost_usd = str((Decimal(input_tokens) * input_price + Decimal(output_tokens) * output_price) / Decimal(1_000_000))
+        except (InvalidOperation, ValueError):
+            cost_usd = None
+
         return {
             "answer": response.output_text,
             "sources": sources,
@@ -65,5 +82,6 @@ class RAGAnswerGenerator:
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
                 "total_tokens": input_tokens + output_tokens,
+                "estimated_cost_usd": cost_usd,
             },
         }
