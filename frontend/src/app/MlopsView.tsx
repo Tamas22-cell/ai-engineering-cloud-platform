@@ -5,11 +5,14 @@ import { useState, type Dispatch, type SetStateAction } from 'react';
 type AuthResponse = { access_token: string; refresh_token: string };
 type MetricSummary = { metric_name: string; latest: number; average: number; delta: number; threshold: number | null; alert: boolean; count: number };
 type ModelRun = { id: string; metric_name: string; metric_value: number; duration_ms: number }; 
+type CurrentUser = { email: string; role: string; is_active: boolean };
 type Model = { id: string; name: string; version: string; framework: string; stage: string };
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
   const [models, setModels] = useState<Model[]>([]);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [checkingUser, setCheckingUser] = useState(false);
   const [newName, setNewName] = useState('');
   const [newVersion, setNewVersion] = useState('1.0.0');
   const [newFramework, setNewFramework] = useState('PyTorch');
@@ -84,6 +87,20 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     }
   }
 
+  async function checkRole() {
+    setCheckingUser(true);
+    setError('');
+    try {
+      const response = await authorizedGet('/auth/me');
+      if (!response.ok) throw new Error(`Fiókellenőrzés: HTTP ${response.status}`);
+      setCurrentUser((await response.json()) as CurrentUser);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Nem sikerült ellenőrizni a fiókot.');
+    } finally {
+      setCheckingUser(false);
+    }
+  }
+
   async function loadModels() {
     setError('');
     if (!auth) { setError('Jelentkezz be az Agents vagy a RAG oldalon.'); return; }
@@ -140,6 +157,10 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     <p className="text-sm text-[#9AA3AE]">Verziózott modellek és deployment stage-ek a FastAPI backendről. Nem demo-adatok.</p>
     <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
       <p className="text-sm text-[#9AA3AE]">{auth ? 'Közös munkamenet: bejelentkezve.' : 'Jelentkezz be az Agents vagy a RAG oldalon. Nem kell tokent másolni.'}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={checkRole} disabled={!auth || checkingUser} className="rounded-lg border border-cyan-400/50 px-4 py-2 text-sm text-cyan-200 disabled:opacity-50">{checkingUser ? 'Ellenőrzés...' : 'Saját jogosultság ellenőrzése'}</button>
+        {currentUser && <p className="text-sm text-slate-200">Fiók: {currentUser.email} · Szerepkör: <strong>{currentUser.role}</strong> · {currentUser.is_active ? 'Aktív' : 'Inaktív'}</p>}
+      </div>
       <button onClick={loadModels} disabled={loading || !auth} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Lekérdezés...' : 'Modellek lekérdezése'}</button>
     </div>
     <form onSubmit={createModel} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
