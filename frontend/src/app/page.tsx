@@ -98,7 +98,7 @@ export default function HomePage() {
             <RagView onTelemetry={setRagTelemetry} auth={auth} setAuth={setAuth} />
           )}
           {active === 'mlops' && (
-            <MlopsView />
+            <MlopsView auth={auth} setAuth={setAuth} />
           )}
           {active === 'data' && (
             <Placeholder title="Data Engineering" phase="Phase 4" />
