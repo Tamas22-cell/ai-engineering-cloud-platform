@@ -3,12 +3,12 @@
 import { useState } from 'react';
 
 type DocumentItem = { id: string; filename: string; file_size: number; created_at: string };
-type AskResponse = { answer: string; sources: { id: number; source: string; page: number }[]; verified?: boolean; usage?: { model?: string; input_tokens?: number; output_tokens?: number; total_tokens?: number; estimated_cost_usd?: string | null } };
+type AskResponse = { answer: string; sources: { id: number; source: string; page: number }[]; verified?: boolean; usage?: { model?: string; input_tokens?: number; output_tokens?: number; total_tokens?: number; estimated_cost_usd?: string | null }; step_timings_ms?: Record<string, number> };
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 type AuthResponse = { access_token: string; refresh_token: string };
 
-export default function RagView() {
+export default function RagView({ onTelemetry }: { onTelemetry?: (data: { step_timings_ms?: Record<string, number>; usage?: AskResponse['usage']; verified?: boolean }) => void }) {
   const [auth, setAuth] = useState<AuthResponse | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -107,6 +107,7 @@ export default function RagView() {
       body: JSON.stringify({ question: question.trim(), top_k: 5 }),
     });
     setAnswer(data);
+    onTelemetry?.(data);
     setMessage(data.verified ? 'Forráshivatkozásokkal ellenőrzött válasz.' : 'AI-válasz megérkezett; a források ellenőrzése nem sikerült.');
   }
 
@@ -155,6 +156,7 @@ export default function RagView() {
           className="mt-3 w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm text-white" />
         <button type="button" disabled={busy || !auth || !question.trim()} onClick={() => void run(ask)}
           className="mt-3 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium disabled:opacity-40">Kérdezés</button>
+        {answer?.step_timings_ms && <div className="mt-4 rounded-lg border border-cyan-500/20 bg-black/20 p-4"><h4 className="font-semibold text-cyan-300">LangGraph agent futási idők · élő mérés</h4><div className="mt-3 grid grid-cols-2 gap-3">{(['planner','retriever','synthesizer','reviewer'] as const).map(step => <div key={step} className="rounded-lg bg-white/5 p-3"><div className="text-xs uppercase text-slate-400">{step}</div><div className="text-lg font-semibold">{answer.step_timings_ms?.[step] == null ? 'Nincs adat' : `${answer.step_timings_ms[step].toFixed(1)} ms`}</div></div>)}</div><p className="mt-2 text-xs text-slate-400">Mért végrehajtási idők, nem becslések. Tokenek és költség a válasz alatt.</p></div>}
         {answer && <div className="mt-4 space-y-3 rounded-lg bg-black/30 p-4 text-sm text-slate-200"><p className="whitespace-pre-wrap">{answer.answer}</p><p className={answer.verified ? 'text-green-300' : 'text-amber-300'}>{answer.verified ? 'Forráshivatkozások ellenőrizve' : 'Nem igazolt válasz – ellenőrizd a dokumentumokat'}</p>{answer.usage && <p className="text-xs text-cyan-300">AI tokenek · {answer.usage.model ?? "ismeretlen modell"} · bemenet: {answer.usage.input_tokens ?? 0} · kimenet: {answer.usage.output_tokens ?? 0} · összesen: {answer.usage.total_tokens ?? 0}{answer.usage.estimated_cost_usd != null ? ` · becsült költség: ${answer.usage.estimated_cost_usd}` : " · költség nincs konfigurálva"}</p>}<ul className="space-y-1">{(answer.sources ?? []).map(source => <li key={source.id}>[{source.id}] {source.source}, {source.page}. oldal</li>)}</ul></div>}
       </div>
       <p role="status" aria-live="polite" className="text-sm text-cyan-300">{busy ? 'Feldolgozás...' : message}</p>
