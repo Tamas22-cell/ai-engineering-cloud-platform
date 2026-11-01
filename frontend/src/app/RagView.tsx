@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 
 type DocumentItem = { id: string; filename: string; file_size: number; created_at: string };
 type AskResponse = { answer: string; sources: { id: number; source: string; page: number }[]; verified?: boolean; usage?: { model?: string; input_tokens?: number; output_tokens?: number; total_tokens?: number; estimated_cost_usd?: string | null }; step_timings_ms?: Record<string, number> };
@@ -8,8 +8,7 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').rep
 
 type AuthResponse = { access_token: string; refresh_token: string };
 
-export default function RagView({ onTelemetry }: { onTelemetry?: (data: { step_timings_ms?: Record<string, number>; usage?: AskResponse['usage']; verified?: boolean }) => void }) {
-  const [auth, setAuth] = useState<AuthResponse | null>(null);
+export default function RagView({ onTelemetry, auth, setAuth }: { onTelemetry?: (data: { step_timings_ms?: Record<string, number>; usage?: AskResponse['usage']; verified?: boolean }) => void; auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [demoQuestion, setDemoQuestion] = useState('');
@@ -47,7 +46,7 @@ export default function RagView({ onTelemetry }: { onTelemetry?: (data: { step_t
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<AskResponse | null>(null);
-  const [message, setMessage] = useState('A privát RAG-hoz jelentkezz be a fenti RAG bejelentkezésnél.');
+  const [message, setMessage] = useState('A privát RAG-hoz jelentkezz be az Agents vagy a RAG oldalon.');
   const [busy, setBusy] = useState(false);
 
   async function request(path: string, options: RequestInit = {}) {
@@ -57,7 +56,7 @@ export default function RagView({ onTelemetry }: { onTelemetry?: (data: { step_t
     let response = await fetch(`${API_URL}${path}`, { ...options, headers, cache: 'no-store' });
     if (response.status === 401) {
       const refreshed = await fetch(`${API_URL}/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: auth.refresh_token }) });
-      if (!refreshed.ok) { setAuth(null); throw new Error('Lejárt a munkamenet. Jelentkezz be újra az Agents oldalon.'); }
+      if (!refreshed.ok) { setAuth(null); throw new Error('Lejárt a munkamenet. Jelentkezz be újra.'); }
       const tokens = (await refreshed.json()) as AuthResponse;
       setAuth(tokens);
       headers.set('Authorization', `Bearer ${tokens.access_token}`);
@@ -116,7 +115,7 @@ export default function RagView({ onTelemetry }: { onTelemetry?: (data: { step_t
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
         <h2 className="text-xl font-semibold">Multi-Agent RAG Knowledge System</h2>
         <p className="mt-2 text-sm text-slate-400">PDF feltöltés, dokumentumindexelés és LangGraph Multi-Agent RAG: Planner → Retriever → Synthesizer → Reviewer.</p>
-        <p className="mt-4 text-sm text-slate-300">{auth ? 'Privát RAG: bejelentkezve.' : 'A privát RAG külön bejelentkezést igényel.'}</p>
+        <p className="mt-4 text-sm text-slate-300">{auth ? 'Privát RAG: bejelentkezve.' : 'A privát RAG az Agents bejelentkezését használja.'}</p>
       </div>
 
       <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5 space-y-3">
@@ -129,7 +128,7 @@ export default function RagView({ onTelemetry }: { onTelemetry?: (data: { step_t
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
-        <h3 className="font-semibold">Privát RAG · külön bejelentkezés</h3>
+        <h3 className="font-semibold">Privát RAG · közös bejelentkezés</h3>
         {auth ? <div className="flex items-center gap-3"><span className="text-sm text-emerald-300">RAG: Bejelentkezve</span><button type="button" onClick={() => { setAuth(null); setDocuments([]); setAnswer(null); }} className="rounded border border-white/20 px-3 py-2 text-sm">Kijelentkezés</button></div> : <><input type="email" autoComplete="username" aria-label="RAG e-mail" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm" /><input type="password" autoComplete="current-password" aria-label="RAG jelszó" placeholder="Jelszó" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm" /><button type="button" disabled={!email.trim() || !password} onClick={() => void signIn()} className="rounded-lg bg-violet-600 px-4 py-2 text-sm disabled:opacity-40">RAG bejelentkezés</button></>}
         {authError && <p role="alert" className="text-sm text-red-300">{authError}</p>}
       </div>
