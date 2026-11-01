@@ -3,9 +3,9 @@
 import { useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
-type ChatResponse = { response: string };
+type ChatResponse = { response: string; thread_id?: string };
 type AuthResponse = { access_token: string; refresh_token: string };
-type AgentMode = 'demo' | 'llm' | 'tools';
+type AgentMode = 'demo' | 'llm' | 'tools' | 'workflow';
 
 export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
   const [mode, setMode] = useState<AgentMode>('demo');
@@ -48,7 +48,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         'Content-Type': 'application/json',
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
-      body: JSON.stringify({ message: message.trim() }),
+      body: JSON.stringify(path === '/agents/workflow' ? { task: message.trim() } : { message: message.trim() }),
       signal,
     });
   }
@@ -60,10 +60,10 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     setError('');
     setReply('');
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 35000);
+    const timer = setTimeout(() => controller.abort(), mode === 'workflow' ? 70000 : 35000);
     try {
       if (mode !== 'demo' && !auth) throw new Error('Előbb jelentkezz be az e-mail-címeddel.');
-      const path = mode === 'demo' ? '/agents/chat' : mode === 'llm' ? '/agents/llm-chat' : '/agents/tool-chat';
+      const path = mode === 'demo' ? '/agents/chat' : mode === 'llm' ? '/agents/llm-chat' : mode === 'tools' ? '/agents/tool-chat' : '/agents/workflow';
       let response = await agentRequest(path, mode === 'demo' ? '' : auth!.access_token, controller.signal);
       if (response.status === 401 && mode !== 'demo' && auth) {
         const refreshed = await fetch(`${API_URL}/auth/refresh`, {
@@ -85,7 +85,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         throw new Error(typeof body?.detail === 'string' ? body.detail : `API HTTP ${response.status}`);
       }
       const result = (await response.json()) as ChatResponse;
-      setReply(result.response || 'A válasz üres.');
+      setReply((result.thread_id ? `Workflow ID: ${result.thread_id}\n\n` : '') + (result.response || 'A válasz üres.'));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Az API-hívás sikertelen.');
     } finally {
@@ -122,6 +122,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
             <option value="demo">Demo agent</option>
             <option value="llm">LLM agent</option>
             <option value="tools">Tool-calling agent</option>
+            <option value="workflow">Planner–Executor–Reviewer workflow</option>
           </select>
         </label>
         <label className="block text-sm">Üzenet
