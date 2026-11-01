@@ -30,8 +30,8 @@ async def lifespan(app: FastAPI):
             await grant_developer(bootstrap_email, confirm=True)
             logger.info("developer_bootstrap_completed")
         except Exception:
-            logger.exception("developer_bootstrap_failed")
-            raise
+            # A missing or mismatched account must never take the API offline.
+            logger.exception("developer_bootstrap_failed_no_role_change")
     tracer_provider = configure_langfuse()
     logger.info(
         "application_startup",
