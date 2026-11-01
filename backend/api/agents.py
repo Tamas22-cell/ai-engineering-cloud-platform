@@ -127,19 +127,16 @@ async def workflow_chat(
                 task=data.task,
                 thread_id=str(thread_id),
             ),
-            timeout=60,
+            timeout=120,
         )
+        logger.info("agent_workflow_completed", thread_id=str(thread_id))
         return WorkflowResponse(
             thread_id=thread_id,
             response=result["final_answer"],
         )
     except TimeoutError:
-        raise HTTPException(
-            status_code=504,
-            detail="AI workflow timed out",
-        )
-    except Exception:
-        raise HTTPException(
-            status_code=503,
-            detail="AI workflow unavailable",
-        )
+        logger.warning("agent_workflow_timeout", thread_id=str(thread_id), timeout_seconds=120)
+        raise HTTPException(status_code=504, detail="AI workflow timed out after 120 seconds")
+    except Exception as exc:
+        logger.error("agent_workflow_failed", thread_id=str(thread_id), error_type=type(exc).__name__)
+        raise HTTPException(status_code=503, detail="AI workflow unavailable")
