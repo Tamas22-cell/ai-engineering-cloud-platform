@@ -95,7 +95,7 @@ export default function HomePage() {
           {active === 'overview' && <OverviewView />}
           {active === 'agents' && <AgentsView auth={auth} setAuth={setAuth} />}
           {active === 'rag' && (
-            <RagView onTelemetry={setRagTelemetry} />
+            <RagView onTelemetry={setRagTelemetry} auth={auth} setAuth={setAuth} />
           )}
           {active === 'mlops' && (
             <MlopsView />
