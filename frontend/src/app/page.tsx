@@ -33,6 +33,36 @@ const navItems = [
 export default function HomePage() {
   const [active, setActive] = useState('overview');
   const [auth, setAuth] = useState<SharedAuth | null>(null);
+  const [authRestored, setAuthRestored] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem('ai-engineering-auth');
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && 'access_token' in parsed && 'refresh_token' in parsed &&
+            typeof parsed.access_token === 'string' && typeof parsed.refresh_token === 'string') {
+          setAuth({ access_token: parsed.access_token, refresh_token: parsed.refresh_token });
+        } else {
+          window.sessionStorage.removeItem('ai-engineering-auth');
+        }
+      }
+    } catch {
+      window.sessionStorage.removeItem('ai-engineering-auth');
+    } finally {
+      setAuthRestored(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authRestored) return;
+    try {
+      if (auth) window.sessionStorage.setItem('ai-engineering-auth', JSON.stringify(auth));
+      else window.sessionStorage.removeItem('ai-engineering-auth');
+    } catch {
+      // Private browsing can disable session storage; in-memory login still works.
+    }
+  }, [auth, authRestored]);
   const [ragTelemetry, setRagTelemetry] = useState<{ step_timings_ms?: Record<string, number>; usage?: { model?: string; total_tokens?: number; estimated_cost_usd?: string | null }; verified?: boolean } | null>(null);
 
   return (
@@ -93,11 +123,11 @@ export default function HomePage() {
 
         <main className="flex-1 p-4 md:p-6 overflow-auto">
           {active === 'overview' && <OverviewView />}
-          {active === 'agents' && <AgentsView auth={auth} setAuth={setAuth} />}
-          {active === 'rag' && (
+          {active === 'agents' && authRestored && <AgentsView auth={auth} setAuth={setAuth} />}
+          {active === 'rag' && authRestored && (
             <RagView onTelemetry={setRagTelemetry} auth={auth} setAuth={setAuth} />
           )}
-          {active === 'mlops' && (
+          {active === 'mlops' && authRestored && (
             <MlopsView auth={auth} setAuth={setAuth} />
           )}
           {active === 'data' && (
