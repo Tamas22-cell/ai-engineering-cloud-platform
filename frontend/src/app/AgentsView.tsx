@@ -60,7 +60,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     setError('');
     setReply('');
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), mode === 'workflow' ? 70000 : 35000);
+    const timer = setTimeout(() => controller.abort('A kérés időkorlátja lejárt.'), mode === 'workflow' ? 150000 : 90000);
     try {
       if (mode !== 'demo' && !auth) throw new Error('Előbb jelentkezz be az e-mail-címeddel.');
       const path = mode === 'demo' ? '/agents/chat' : mode === 'llm' ? '/agents/llm-chat' : mode === 'tools' ? '/agents/tool-chat' : '/agents/workflow';
@@ -87,7 +87,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
       const result = (await response.json()) as ChatResponse;
       setReply((result.thread_id ? `Workflow ID: ${result.thread_id}\n\n` : '') + (result.response || 'A válasz üres.'));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Az API-hívás sikertelen.');
+      setError(controller.signal.aborted ? 'A backend nem válaszolt időben. A Render felébredése vagy az AI workflow túl hosszú futása okozhatja.' : reason instanceof Error ? reason.message : 'Az API-hívás sikertelen.');
     } finally {
       clearTimeout(timer);
       setBusy(false);
