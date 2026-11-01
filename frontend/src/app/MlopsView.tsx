@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 
+type AuthResponse = { access_token: string; refresh_token: string };
 type MetricSummary = { metric_name: string; latest: number; average: number; delta: number; threshold: number | null; alert: boolean; count: number };
 type ModelRun = { id: string; metric_name: string; metric_value: number; duration_ms: number }; 
 type Model = { id: string; name: string; version: string; framework: string; stage: string };
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
-export default function MlopsView() {
-  const [token, setToken] = useState('');
+export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
   const [models, setModels] = useState<Model[]>([]);
   const [error, setError] = useState('');
   const [runs, setRuns] = useState<Record<string, ModelRun[]>>({});
@@ -18,15 +18,34 @@ export default function MlopsView() {
   const [thresholds, setThresholds] = useState<Record<string, string>>({});
   const [directions, setDirections] = useState<Record<string, 'below' | 'above'>>({});
 
+  async function authorizedGet(path: string): Promise<Response> {
+    if (!auth) throw new Error('Jelentkezz be az Agents vagy a RAG oldalon.');
+    const request = (accessToken: string) => fetch(`${API}${path}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store',
+    });
+    let response = await request(auth.access_token);
+    if (response.status === 401) {
+      const refreshed = await fetch(`${API}/auth/refresh`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: auth.refresh_token }),
+      });
+      if (!refreshed.ok) {
+        setAuth(null);
+        throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+      }
+      const tokens = (await refreshed.json()) as AuthResponse;
+      setAuth(tokens);
+      response = await request(tokens.access_token);
+    }
+    return response;
+  }
+
   async function loadModels() {
     setError('');
-    if (!token.trim()) { setError('JWT token szükséges.'); return; }
+    if (!auth) { setError('Jelentkezz be az Agents vagy a RAG oldalon.'); return; }
     setLoading(true);
     try {
-      const response = await fetch(`${API}/mlops/models`, {
-        headers: { Authorization: `Bearer ${token.trim()}` },
-        cache: 'no-store',
-      });
+      const response = await authorizedGet('/mlops/models');
       if (!response.ok) throw new Error(`Model Registry API: HTTP ${response.status}`);
       setModels(await response.json() as Model[]);
     } catch (e) {
@@ -38,11 +57,8 @@ export default function MlopsView() {
 
   async function loadRuns(modelId: string) {
     try {
-      if (!token.trim()) throw new Error('JWT token szükséges.');
-      const response = await fetch(`${API}/mlops/models/${encodeURIComponent(modelId)}/runs`, {
-        headers: { Authorization: `Bearer ${token.trim()}` },
-        cache: 'no-store',
-      });
+      if (!auth) throw new Error('Jelentkezz be az Agents vagy a RAG oldalon.');
+      const response = await authorizedGet(`/mlops/models/${encodeURIComponent(modelId)}/runs`);
       if (!response.ok) throw new Error(`Model run API: HTTP ${response.status}`);
       const data = (await response.json()) as ModelRun[];
       setRuns(previous => ({ ...previous, [modelId]: data }));
@@ -54,7 +70,7 @@ export default function MlopsView() {
 
   async function loadSummary(modelId: string) {
     try {
-      if (!token.trim()) throw new Error('JWT token szükséges.');
+      if (!auth) throw new Error('Jelentkezz be az Agents vagy a RAG oldalon.');
       const metricName = (metricNames[modelId] || 'accuracy').trim();
       if (!metricName) throw new Error('Adj meg egy metrikanevet.');
       const rawThreshold = (thresholds[modelId] ?? '0.8').trim();
@@ -65,10 +81,7 @@ export default function MlopsView() {
       const direction = directions[modelId] || 'below';
       const params = new URLSearchParams({ direction });
       if (parsedThreshold !== null) params.set('threshold', String(parsedThreshold));
-      const response = await fetch(
-        `${API}/mlops/models/${encodeURIComponent(modelId)}/metrics/${encodeURIComponent(metricName)}/summary?${params}`,
-        { headers: { Authorization: `Bearer ${token.trim()}` }, cache: 'no-store' }
-      );
+      const response = await authorizedGet(`/mlops/models/${encodeURIComponent(modelId)}/metrics/${encodeURIComponent(metricName)}/summary?${params}`);
       if (!response.ok) throw new Error(`Metric summary: HTTP ${response.status}`);
       const data = (await response.json()) as MetricSummary;
       setSummaries(previous => ({ ...previous, [modelId]: data }));
@@ -82,11 +95,8 @@ export default function MlopsView() {
     <h2 className="text-xl font-semibold">MLOps / Model Registry</h2>
     <p className="text-sm text-[#9AA3AE]">Verziózott modellek és deployment stage-ek a FastAPI backendről. Nem demo-adatok.</p>
     <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
-      <label className="block text-sm">JWT hozzáférési token
-        <input type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)}
-          className="mt-2 w-full rounded-lg border border-white/15 bg-[#11151C] p-3" placeholder="Access token"/>
-      </label>
-      <button onClick={loadModels} disabled={loading} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Lekérdezés...' : 'Modellek lekérdezése'}</button>
+      <p className="text-sm text-[#9AA3AE]">{auth ? 'Közös munkamenet: bejelentkezve.' : 'Jelentkezz be az Agents vagy a RAG oldalon. Nem kell tokent másolni.'}</p>
+      <button onClick={loadModels} disabled={loading || !auth} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Lekérdezés...' : 'Modellek lekérdezése'}</button>
     </div>
     {error && <p role="alert" className="text-red-300">{error}</p>}
     <div className="overflow-x-auto rounded-xl border border-white/10">
