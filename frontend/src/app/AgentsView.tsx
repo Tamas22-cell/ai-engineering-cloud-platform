@@ -3,7 +3,7 @@
 import { useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
-type ChatResponse = { response: string; thread_id?: string };
+type ChatResponse = { response: string; thread_id?: string; plan?: string; execution?: string; review?: string };
 type AuthResponse = { access_token: string; refresh_token: string };
 type AgentMode = 'demo' | 'llm' | 'tools' | 'workflow';
 
@@ -13,6 +13,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [reply, setReply] = useState('');
+  const [workflow, setWorkflow] = useState<ChatResponse | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -59,6 +60,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     setBusy(true);
     setError('');
     setReply('');
+    setWorkflow(null);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort('A kérés időkorlátja lejárt.'), mode === 'workflow' ? 150000 : 90000);
     try {
@@ -85,7 +87,11 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         throw new Error(typeof body?.detail === 'string' ? body.detail : `API HTTP ${response.status}`);
       }
       const result = (await response.json()) as ChatResponse;
-      setReply((result.thread_id ? `Workflow ID: ${result.thread_id}\n\n` : '') + (result.response || 'A válasz üres.'));
+      if (mode === 'workflow' && result.plan && result.execution && result.review) {
+        setWorkflow(result);
+      } else {
+        setReply((result.thread_id ? `Workflow ID: ${result.thread_id}\n\n` : '') + (result.response || 'A válasz üres.'));
+      }
     } catch (reason) {
       setError(controller.signal.aborted ? 'A backend nem válaszolt időben. A Render felébredése vagy az AI workflow túl hosszú futása okozhatja.' : reason instanceof Error ? reason.message : 'Az API-hívás sikertelen.');
     } finally {
@@ -130,6 +136,15 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         </label>
         <button type="submit" disabled={busy || !message.trim() || (mode !== 'demo' && !auth)} className="rounded-lg bg-cyan-500 px-5 py-2 font-medium text-black disabled:opacity-50">{busy ? 'Feldolgozás...' : 'Küldés'}</button>
       </form>
+      {workflow && <div className="space-y-3" aria-label="Workflow eredmények">
+        <p className="text-xs text-[#9AA3AE]">Workflow ID: {workflow.thread_id}</p>
+        {([['01 · Planner – terv', workflow.plan], ['02 · Executor – végrehajtás', workflow.execution], ['03 · Reviewer – ellenőrzés és végső válasz', workflow.review]] as const).map(([heading, content]) => (
+          <article key={heading} className="rounded-xl border border-cyan-500/20 bg-white/5 p-4">
+            <h3 className="mb-3 font-semibold text-cyan-300">{heading}</h3>
+            <p className="whitespace-pre-wrap break-words text-sm">{content}</p>
+          </article>
+        ))}
+      </div>}
       {reply && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><h3 className="mb-2 font-semibold">Agent válasza</h3><p className="whitespace-pre-wrap break-words text-sm">{reply}</p></div>}
       {error && <div role="alert" className="rounded-xl border border-red-500/30 p-4 text-sm text-red-300">{error}</div>}
       <p className="text-xs text-[#9AA3AE]">Az LLM és tool agent működéséhez a backend OpenAI API-kulcsa is szükséges.</p>
