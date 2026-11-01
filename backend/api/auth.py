@@ -1,3 +1,5 @@
+import os
+
 from core.audit import save_audit_event
 from core.audit import record_audit_event
 from core.dependencies import get_current_user
@@ -58,6 +60,15 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
             user_id=str(user.id),
         )
         raise HTTPException(status_code=403, detail='Account disabled')
+    # Opt-in, email-scoped promotion only after successful password verification.
+    # Never allow this path to assign admin privileges.
+    promotion_email = os.getenv("ONE_TIME_DEVELOPER_EMAIL", "").strip().lower()
+    promotion_confirmed = os.getenv("ONE_TIME_DEVELOPER_CONFIRM", "") == "YES"
+    if promotion_confirmed and promotion_email and email == promotion_email and user.role == "viewer":
+        user.role = "developer"
+        await db.commit()
+        await db.refresh(user)
+        await save_audit_event(event_type="developer_role_granted_after_login", user_id=str(user.id))
     token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
     await save_refresh_token(refresh_token)
