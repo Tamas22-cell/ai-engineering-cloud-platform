@@ -1,17 +1,16 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 type ChatResponse = { response: string };
 type AuthResponse = { access_token: string; refresh_token: string };
 type AgentMode = 'demo' | 'llm' | 'tools';
 
-export default function AgentsView() {
+export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
   const [mode, setMode] = useState<AgentMode>('demo');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [auth, setAuth] = useState<AuthResponse | null>(null);
   const [message, setMessage] = useState('');
   const [reply, setReply] = useState('');
   const [error, setError] = useState('');
