@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useState } from 'react';
 
 type DocumentItem = { id: string; filename: string; file_size: number; created_at: string };
 type AskResponse = { answer: string; sources: { id: number; source: string; page: number }[]; verified?: boolean; usage?: { model?: string; input_tokens?: number; output_tokens?: number; total_tokens?: number; estimated_cost_usd?: string | null } };
@@ -8,16 +8,50 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').rep
 
 type AuthResponse = { access_token: string; refresh_token: string };
 
-export default function RagView({ auth, setAuth }: { auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
+export default function RagView() {
+  const [auth, setAuth] = useState<AuthResponse | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [demoQuestion, setDemoQuestion] = useState('');
+  const [demoAnswer, setDemoAnswer] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  async function signIn() {
+    setAuthError('');
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) throw new Error('Sikertelen bejelentkezés. Ellenőrizd az adatokat.');
+      setAuth((await response.json()) as AuthResponse);
+      setPassword('');
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Bejelentkezési hiba');
+    }
+  }
+
+  function askDemo() {
+    const question = demoQuestion.trim().toLowerCase();
+    if (!question) return;
+    if (question.includes('rag') || question.includes('keres') || question.includes('retriev')) {
+      setDemoAnswer('Minta dokumentum [1]: A RAG releváns szövegrészeket keres egy dokumentumgyűjteményben, majd ezek alapján állít elő választ. Ez a válasz előre definiált demonstráció, nem éles LLM-hívás.');
+    } else if (question.includes('agent') || question.includes('langgraph')) {
+      setDemoAnswer('Minta dokumentum [2]: A multi-agent RAG négy lépése: Planner → Retriever → Synthesizer → Reviewer. Ez egy statikus bemutató válasz, nem éles dokumentumkeresés.');
+    } else {
+      setDemoAnswer('A két nyilvános mintadokumentumban nincs erre előre definiált válasz. Próbáld: „Mi az a RAG?” vagy „Hogyan működik a multi-agent RAG?”');
+    }
+  }
   const [file, setFile] = useState<File | null>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<AskResponse | null>(null);
-  const [message, setMessage] = useState('A RAG API védett; jelentkezz be az Agents oldalon.');
+  const [message, setMessage] = useState('A privát RAG-hoz jelentkezz be a fenti RAG bejelentkezésnél.');
   const [busy, setBusy] = useState(false);
 
   async function request(path: string, options: RequestInit = {}) {
-    if (!auth) throw new Error('Jelentkezz be az Agents oldalon.');
+    if (!auth) throw new Error('Jelentkezz be a RAG oldalon.');
     const headers = new Headers(options.headers);
     headers.set('Authorization', `Bearer ${auth.access_token}`);
     let response = await fetch(`${API_URL}${path}`, { ...options, headers, cache: 'no-store' });
@@ -81,7 +115,22 @@ export default function RagView({ auth, setAuth }: { auth: AuthResponse | null; 
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
         <h2 className="text-xl font-semibold">Multi-Agent RAG Knowledge System</h2>
         <p className="mt-2 text-sm text-slate-400">PDF feltöltés, dokumentumindexelés és LangGraph Multi-Agent RAG: Planner → Retriever → Synthesizer → Reviewer.</p>
-        <p className="mt-4 text-sm text-slate-300">{auth ? 'Bejelentkezve · az Agents munkamenetét használjuk.' : 'Jelentkezz be az Agents menüben a RAG használatához.'}</p>
+        <p className="mt-4 text-sm text-slate-300">{auth ? 'Privát RAG: bejelentkezve.' : 'A privát RAG külön bejelentkezést igényel.'}</p>
+      </div>
+
+      <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5 space-y-3">
+        <h3 className="font-semibold">Nyilvános RAG demo · bejelentkezés nélkül</h3>
+        <p className="text-sm text-slate-400">Két előre definiált mintadokumentum alapján működő, statikus bemutató. Nem használ OpenAI API-t, nem keres adatbázisban és nem fogad PDF-et.</p>
+        <p className="text-xs text-slate-300">[1] RAG alapok · [2] Multi-agent workflow</p>
+        <input aria-label="Demo kérdés" value={demoQuestion} onChange={e => setDemoQuestion(e.target.value)} placeholder="Mi az a RAG?" className="w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm text-white" />
+        <button type="button" onClick={askDemo} disabled={!demoQuestion.trim()} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm text-white disabled:opacity-40">Demo kipróbálása</button>
+        {demoAnswer && <p className="rounded-lg bg-black/30 p-3 text-sm text-slate-200" role="status">{demoAnswer}</p>}
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
+        <h3 className="font-semibold">Privát RAG · külön bejelentkezés</h3>
+        {auth ? <div className="flex items-center gap-3"><span className="text-sm text-emerald-300">RAG: Bejelentkezve</span><button type="button" onClick={() => { setAuth(null); setDocuments([]); setAnswer(null); }} className="rounded border border-white/20 px-3 py-2 text-sm">Kijelentkezés</button></div> : <><input type="email" autoComplete="username" aria-label="RAG e-mail" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm" /><input type="password" autoComplete="current-password" aria-label="RAG jelszó" placeholder="Jelszó" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm" /><button type="button" disabled={!email.trim() || !password} onClick={() => void signIn()} className="rounded-lg bg-violet-600 px-4 py-2 text-sm disabled:opacity-40">RAG bejelentkezés</button></>}
+        {authError && <p role="alert" className="text-sm text-red-300">{authError}</p>}
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
