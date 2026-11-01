@@ -33,6 +33,7 @@ const navItems = [
 export default function HomePage() {
   const [active, setActive] = useState('overview');
   const [auth, setAuth] = useState<SharedAuth | null>(null);
+  const [ragTelemetry, setRagTelemetry] = useState<{ step_timings_ms?: Record<string, number>; usage?: { model?: string; total_tokens?: number; estimated_cost_usd?: string | null }; verified?: boolean } | null>(null);
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
@@ -94,7 +95,7 @@ export default function HomePage() {
           {active === 'overview' && <OverviewView />}
           {active === 'agents' && <AgentsView auth={auth} setAuth={setAuth} />}
           {active === 'rag' && (
-            <RagView />
+            <RagView onTelemetry={setRagTelemetry} />
           )}
           {active === 'mlops' && (
             <MlopsView />
@@ -109,7 +110,7 @@ export default function HomePage() {
             <Placeholder title="Cloud Infrastructure" phase="Phase 5" />
           )}
           {active === 'observability' && (
-            <Placeholder title="Observability" phase="Phase 5" />
+            <ObservabilityView telemetry={ragTelemetry} />
           )}
           {active === 'security' && (
             <Placeholder title="Security Dashboard" phase="Phase 1 / 5" />
@@ -418,4 +419,14 @@ function SkillsView() {
       </div>
     </div>
   );
+}
+function ObservabilityView({ telemetry }: { telemetry: { step_timings_ms?: Record<string, number>; usage?: { model?: string; total_tokens?: number; estimated_cost_usd?: string | null }; verified?: boolean } | null }) {
+  const steps = ['planner', 'retriever', 'synthesizer', 'reviewer'];
+  return <section className="max-w-5xl space-y-5">
+    <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5"><h2 className="text-xl font-semibold">Multi-Agent RAG Observability</h2><p className="mt-2 text-sm text-slate-400">A legutóbbi RAG-kérdés valós LangGraph futási adatai ebben a böngészőmunkamenetben. Nincs szimulált telemetria.</p></div>
+    {!telemetry?.step_timings_ms ? <div className="rounded-xl border border-amber-500/20 p-5 text-amber-200">Még nincs mért futás ebben a munkamenetben. Menj a RAG oldalra, jelentkezz be, és tegyél fel egy kérdést a feltöltött PDF-ről.</div> : <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{steps.map(step => <div key={step} className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-sm capitalize text-slate-300">{step}</p><p className="mt-2 text-2xl font-semibold">{telemetry.step_timings_ms?.[step] == null ? 'Nincs adat' : `${telemetry.step_timings_ms[step].toFixed(1)} ms`}</p></div>)}</div>
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Legutóbbi kérdés összesítése</h3><p>Forrásellenőrzés: {telemetry.verified ? 'Sikeres' : 'Nem igazolt'}</p><p>LLM modell: {telemetry.usage?.model ?? 'Nem jelentett'}</p><p>LLM tokenek: {telemetry.usage?.total_tokens ?? 'Nem jelentett'}</p><p>Becsült LLM költség: {telemetry.usage?.estimated_cost_usd == null ? 'Nincs konfigurálva' : `$${telemetry.usage.estimated_cost_usd}`}</p><p className="text-xs text-slate-400">A tokenköltség nem tartalmazza automatikusan az embedding és infrastruktúra költségeit. Az adatok oldalfrissítéskor elvesznek.</p></div>
+    </>}
+  </section>;
 }
