@@ -114,6 +114,21 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
         <p>{summaries[m.id].metric_name}: {summaries[m.id].latest.toFixed(3)} · Átlag: {summaries[m.id].average.toFixed(3)} · Változás: {summaries[m.id].delta.toFixed(3)}</p>
         <p className={summaries[m.id].alert ? 'text-red-300' : 'text-emerald-300'}>{summaries[m.id].threshold === null ? 'Nincs riasztási küszöb' : summaries[m.id].alert ? 'Figyelmeztetés: küszöb átlépve' : 'Nincs riasztás'}</p>
       </div>}
+      {runs[m.id] && runs[m.id].filter(run => run.metric_name === (metricNames[m.id] || 'accuracy').trim()).length > 0 && (() => {
+        const selected = runs[m.id].filter(run => run.metric_name === (metricNames[m.id] || 'accuracy').trim());
+        const values = selected.map(run => run.metric_value).filter(Number.isFinite);
+        if (!values.length) return null;
+        const min = Math.min(0, ...values);
+        const max = Math.max(0, ...values);
+        const span = max - min || 1;
+        return <div className="mt-3 rounded-lg border border-white/10 p-3">
+          <p className="mb-2 text-xs text-slate-300">Valós modellfutások · {metricNames[m.id] || 'accuracy'} · {values.length} mérés</p>
+          <div role="img" aria-label={`Metrikatrend: ${values.map(v => v.toFixed(3)).join(', ')}`} className="flex h-28 items-end gap-1 overflow-x-auto">
+            {values.map((value, index) => <div key={index} title={`${value.toFixed(4)}`} className="min-w-2 flex-1 rounded-t bg-cyan-400/80" style={{ height: `${Math.max(3, ((value - min) / span) * 100)}%` }} />)}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">Min: {Math.min(...values).toFixed(3)} · Max: {Math.max(...values).toFixed(3)} · A grafikon kizárólag lekért futásokból készül.</p>
+        </div>;
+      })()}
       {runs[m.id] && <div className="mt-2 text-xs">{runs[m.id].length ? runs[m.id].map(run => <p key={run.id}>{run.metric_name}: {run.metric_value} ({run.duration_ms} ms)</p>) : "Nincs rögzített futás"}</div>}</td></tr>)}</tbody>
       </table>
     </div>
