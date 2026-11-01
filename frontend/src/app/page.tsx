@@ -6,6 +6,8 @@ import RagView from './RagView';
 import AgentsView from './AgentsView';
 import MlopsView from './MlopsView';
 
+type SharedAuth = { access_token: string; refresh_token: string };
+
 type ApiStatus = 'checking' | 'online' | 'offline';
 
 type HealthResponse = {
@@ -30,6 +32,7 @@ const navItems = [
 
 export default function HomePage() {
   const [active, setActive] = useState('overview');
+  const [auth, setAuth] = useState<SharedAuth | null>(null);
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
@@ -89,9 +92,9 @@ export default function HomePage() {
 
         <main className="flex-1 p-4 md:p-6 overflow-auto">
           {active === 'overview' && <OverviewView />}
-          {active === 'agents' && <AgentsView />}
+          {active === 'agents' && <AgentsView auth={auth} setAuth={setAuth} />}
           {active === 'rag' && (
-            <RagView />
+            <RagView auth={auth} setAuth={setAuth} />
           )}
           {active === 'mlops' && (
             <MlopsView />
