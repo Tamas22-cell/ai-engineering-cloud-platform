@@ -11,6 +11,8 @@ const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace
 
 export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
   const [models, setModels] = useState<Model[]>([]);
+  const [profile, setProfile] = useState<{ email: string; role: string } | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [checkingUser, setCheckingUser] = useState(false);
   const [newName, setNewName] = useState('');
@@ -101,6 +103,22 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     }
   }
 
+  async function loadProfile() {
+    setError('');
+    setProfileLoading(true);
+    try {
+      const response = await authorizedGet('/auth/me');
+      if (!response.ok) throw new Error(`Fiókadatok: HTTP ${response.status}`);
+      const data = await response.json() as { email: string; role: string };
+      setProfile({ email: data.email, role: data.role });
+    } catch (e) {
+      setProfile(null);
+      setError(e instanceof Error ? e.message : 'Nem sikerült lekérdezni a fiókot.');
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
   async function loadModels() {
     setError('');
     if (!auth) { setError('Jelentkezz be az Agents vagy a RAG oldalon.'); return; }
@@ -161,6 +179,8 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
         <button onClick={checkRole} disabled={!auth || checkingUser} className="rounded-lg border border-cyan-400/50 px-4 py-2 text-sm text-cyan-200 disabled:opacity-50">{checkingUser ? 'Ellenőrzés...' : 'Saját jogosultság ellenőrzése'}</button>
         {currentUser && <p className="text-sm text-slate-200">Fiók: {currentUser.email} · Szerepkör: <strong>{currentUser.role}</strong> · {currentUser.is_active ? 'Aktív' : 'Inaktív'}</p>}
       </div>
+      <button onClick={loadProfile} disabled={!auth || profileLoading} className="mr-2 rounded-lg border border-cyan-500/50 px-4 py-2 text-cyan-200 disabled:opacity-50">{profileLoading ? 'Ellenőrzés...' : 'Fiókom és jogosultságom'}</button>
+      {profile && <p className="text-sm text-slate-200">Bejelentkezett fiók: <strong>{profile.email}</strong> · Szerepkör: <strong>{profile.role}</strong></p>}
       <button onClick={loadModels} disabled={loading || !auth} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Lekérdezés...' : 'Modellek lekérdezése'}</button>
     </div>
     <form onSubmit={createModel} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
