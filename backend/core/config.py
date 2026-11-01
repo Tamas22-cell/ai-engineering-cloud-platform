@@ -1,4 +1,4 @@
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     openai_api_key: str = ""
     cors_origins: str = "http://localhost:3000,https://ai-engineering-cloud-platform.vercel.app"
+
+    @model_validator(mode="after")
+    def validate_production_security(self):
+        if self.environment.lower() in {"production", "prod"}:
+            if (
+                self.secret_key == "dev-secret-change-me-in-production"
+                or len(self.secret_key) < 32
+            ):
+                raise ValueError("Production SECRET_KEY must be a strong, unique secret")
+            if self.algorithm != "HS256":
+                raise ValueError("Unsupported JWT algorithm")
+        return self
 
 
 settings = Settings()
