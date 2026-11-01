@@ -8,7 +8,7 @@ Never expose this operation as a public HTTP endpoint.
 import argparse
 import asyncio
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from core.database import AsyncSessionLocal
 from models.user import User
@@ -22,7 +22,7 @@ async def grant_developer(email: str, confirm: bool) -> None:
         raise ValueError("Explicit --confirm is required")
 
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(User).where(User.email == normalized))
+        result = await db.execute(select(User).where(func.lower(func.trim(User.email)) == normalized))
         user = result.scalar_one_or_none()
         if user is None:
             raise ValueError("Account not found; no changes made")
