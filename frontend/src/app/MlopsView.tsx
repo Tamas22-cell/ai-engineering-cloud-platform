@@ -10,6 +10,10 @@ const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace
 
 export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
   const [models, setModels] = useState<Model[]>([]);
+  const [newName, setNewName] = useState('');
+  const [newVersion, setNewVersion] = useState('1.0.0');
+  const [newFramework, setNewFramework] = useState('PyTorch');
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [runs, setRuns] = useState<Record<string, ModelRun[]>>({});
   const [loading, setLoading] = useState(false);
@@ -38,6 +42,46 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       response = await request(tokens.access_token);
     }
     return response;
+  }
+
+  async function createModel(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!auth) { setError('Jelentkezz be először.'); return; }
+    if (!newName.trim() || !newVersion.trim() || !newFramework.trim()) {
+      setError('Minden mező kitöltése kötelező.'); return;
+    }
+    setCreating(true);
+    setError('');
+    try {
+      const request = (token: string) => fetch(`${API}/mlops/models`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: newName.trim(), version: newVersion.trim(), framework: newFramework.trim() }),
+      });
+      let response = await request(auth.access_token);
+      if (response.status === 401) {
+        const refreshed = await fetch(`${API}/auth/refresh`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: auth.refresh_token }),
+        });
+        if (!refreshed.ok) { setAuth(null); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+        const tokens = (await refreshed.json()) as AuthResponse;
+        setAuth(tokens);
+        response = await request(tokens.access_token);
+      }
+      if (!response.ok) {
+        if (response.status === 403) throw new Error('Modellt csak admin vagy developer szerepkörrel lehet regisztrálni.');
+        if (response.status === 409) throw new Error('Ez a modellverzió már regisztrálva van.');
+        throw new Error(`Modellregisztráció sikertelen: HTTP ${response.status}`);
+      }
+      const model = (await response.json()) as Model;
+      setModels(previous => [model, ...previous.filter(m => m.id !== model.id)]);
+      setNewName('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Nem sikerült regisztrálni a modellt.');
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function loadModels() {
@@ -98,6 +142,16 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       <p className="text-sm text-[#9AA3AE]">{auth ? 'Közös munkamenet: bejelentkezve.' : 'Jelentkezz be az Agents vagy a RAG oldalon. Nem kell tokent másolni.'}</p>
       <button onClick={loadModels} disabled={loading || !auth} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Lekérdezés...' : 'Modellek lekérdezése'}</button>
     </div>
+    <form onSubmit={createModel} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+      <h3 className="font-semibold">Új modell regisztrálása</h3>
+      <p className="text-xs text-slate-400">Valós Model Registry API · admin/developer jogosultság szükséges.</p>
+      <div className="flex flex-wrap gap-2">
+        <input aria-label="Modell neve" required maxLength={120} value={newName} onChange={e => setNewName(e.target.value)} placeholder="Modell neve" className="min-w-40 flex-1 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+        <input aria-label="Modell verziója" required maxLength={80} value={newVersion} onChange={e => setNewVersion(e.target.value)} placeholder="Verzió" className="w-28 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+        <input aria-label="Framework" required maxLength={60} value={newFramework} onChange={e => setNewFramework(e.target.value)} placeholder="Framework" className="w-32 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+      </div>
+      <button type="submit" disabled={!auth || creating} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{creating ? 'Regisztrálás...' : 'Modell regisztrálása'}</button>
+    </form>
     {error && <p role="alert" className="text-red-300">{error}</p>}
     <div className="overflow-x-auto rounded-xl border border-white/10">
       <table className="w-full text-left text-sm">
