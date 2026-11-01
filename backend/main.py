@@ -64,6 +64,9 @@ async def request_observability(request: Request, call_next):
         duration_ms=round((perf_counter() - start) * 1000, 2),
     )
     response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-Frame-Options"] = "DENY"
     return response
 
 app.add_middleware(
