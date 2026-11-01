@@ -9,6 +9,19 @@ type CurrentUser = { email: string; role: string; is_active: boolean };
 type Model = { id: string; name: string; version: string; framework: string; stage: string };
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
+async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('Az API 15 másodpercen belül nem válaszolt. Próbáld újra később.');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null; setAuth: Dispatch<SetStateAction<AuthResponse | null>> }) {
   const [models, setModels] = useState<Model[]>([]);
   const [profile, setProfile] = useState<{ email: string; role: string } | null>(null);
@@ -29,12 +42,12 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
 
   async function authorizedGet(path: string): Promise<Response> {
     if (!auth) throw new Error('Jelentkezz be az Agents vagy a RAG oldalon.');
-    const request = (accessToken: string) => fetch(`${API}${path}`, {
+    const request = (accessToken: string) => fetchWithTimeout(`${API}${path}`, {
       headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store',
     });
     let response = await request(auth.access_token);
     if (response.status === 401) {
-      const refreshed = await fetch(`${API}/auth/refresh`, {
+      const refreshed = await fetchWithTimeout(`${API}/auth/refresh`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: auth.refresh_token }),
       });
@@ -58,14 +71,14 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     setCreating(true);
     setError('');
     try {
-      const request = (token: string) => fetch(`${API}/mlops/models`, {
+      const request = (token: string) => fetchWithTimeout(`${API}/mlops/models`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name: newName.trim(), version: newVersion.trim(), framework: newFramework.trim() }),
       });
       let response = await request(auth.access_token);
       if (response.status === 401) {
-        const refreshed = await fetch(`${API}/auth/refresh`, {
+        const refreshed = await fetchWithTimeout(`${API}/auth/refresh`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: auth.refresh_token }),
         });
