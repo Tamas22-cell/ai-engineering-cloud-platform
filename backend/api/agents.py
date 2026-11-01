@@ -112,6 +112,9 @@ class WorkflowRequest(BaseModel):
 class WorkflowResponse(BaseModel):
     thread_id: UUID
     response: str
+    plan: str
+    execution: str
+    review: str
 
 
 @router.post("/workflow", response_model=WorkflowResponse)
@@ -133,6 +136,9 @@ async def workflow_chat(
         return WorkflowResponse(
             thread_id=thread_id,
             response=result["final_answer"],
+            plan=result["plan"],
+            execution=result["execution"],
+            review=result["review"],
         )
     except TimeoutError:
         logger.warning("agent_workflow_timeout", thread_id=str(thread_id), timeout_seconds=120)
