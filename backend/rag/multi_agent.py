@@ -5,6 +5,7 @@ scoped to that user; documents are treated as data, never instructions.
 """
 import asyncio
 import re
+import time
 from typing import TypedDict
 
 from langgraph.graph import StateGraph, START, END
@@ -24,6 +25,7 @@ class RAGState(TypedDict):
     sources: list[dict]
     verified: bool
     usage: dict
+    step_timings_ms: dict
 
 
 def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_generator=None):
@@ -93,11 +95,24 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
             }
         return {"sources": trusted_sources, "verified": verified}
 
+    def instrument(name, node):
+        async def timed(state):
+            started = time.perf_counter()
+            with trace.get_tracer('ai-engineering.rag').start_as_current_span(f'rag.{name}') as span:
+                try:
+                    result = await node(state)
+                    span.set_attribute('rag.step.success', True)
+                    return {**result, 'step_timings_ms': {**state.get('step_timings_ms', {}), name: round((time.perf_counter() - started) * 1000, 2)}}
+                except Exception:
+                    span.set_attribute('rag.step.success', False)
+                    raise
+        return timed
+
     graph = StateGraph(RAGState)
-    graph.add_node("planner", planner)
-    graph.add_node("retriever", retriever)
-    graph.add_node("synthesizer", synthesizer)
-    graph.add_node("reviewer", reviewer)
+    graph.add_node("planner", instrument("planner", planner))
+    graph.add_node("retriever", instrument("retriever", retriever))
+    graph.add_node("synthesizer", instrument("synthesizer", synthesizer))
+    graph.add_node("reviewer", instrument("reviewer", reviewer))
     graph.add_edge(START, "planner")
     graph.add_edge("planner", "retriever")
     graph.add_edge("retriever", "synthesizer")
@@ -126,6 +141,7 @@ async def run_multi_agent_rag(
         "sources": [],
         "verified": False,
         "usage": {},
+        "step_timings_ms": {},
         }), timeout=60)
         span.set_attribute("rag.verified", bool(result["verified"]))
         span.set_attribute("rag.total_tokens", int(result.get("usage", {}).get("total_tokens", 0)))
@@ -134,4 +150,5 @@ async def run_multi_agent_rag(
         "sources": result["sources"],
         "verified": result["verified"],
         "usage": result.get("usage", {}),
+        "step_timings_ms": result.get("step_timings_ms", {}),
     }
