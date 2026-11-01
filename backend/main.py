@@ -1,6 +1,7 @@
 from api.rag import router as rag_router
 from api.agents import router as agents_router
 from contextlib import asynccontextmanager
+import os
 
 import structlog
 from time import perf_counter
@@ -19,6 +20,18 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Privileged, opt-in, one-account bootstrap for free-tier deployments without Shell.
+    # No HTTP endpoint; disabled unless BOTH environment variables are configured.
+    bootstrap_email = os.getenv("ONE_TIME_DEVELOPER_EMAIL", "").strip().lower()
+    bootstrap_enabled = os.getenv("ONE_TIME_DEVELOPER_CONFIRM", "") == "YES"
+    if bootstrap_email and bootstrap_enabled:
+        from scripts.grant_developer import grant_developer
+        try:
+            await grant_developer(bootstrap_email, confirm=True)
+            logger.info("developer_bootstrap_completed")
+        except Exception:
+            logger.exception("developer_bootstrap_failed")
+            raise
     tracer_provider = configure_langfuse()
     logger.info(
         "application_startup",
