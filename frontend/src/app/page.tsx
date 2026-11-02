@@ -101,10 +101,7 @@ export default function HomePage() {
         </nav>
 
         <div className="p-4 border-t border-white/5">
-          <div className="flex items-center gap-2 text-xs text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Development preview · unverified
-          </div>
+          <LiveBackendStatus />
         </div>
       </aside>
 
@@ -150,6 +147,33 @@ export default function HomePage() {
       </div>
     </div>
   );
+}
+
+function LiveBackendStatus() {
+  const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  useEffect(() => {
+    let active = true;
+    async function check() {
+      try {
+        const response = await fetch('/backend/health/live', {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(20000),
+        });
+        if (active) setStatus(response.ok ? 'online' : 'offline');
+      } catch {
+        if (active) setStatus('offline');
+      }
+    }
+    void check();
+    const interval = window.setInterval(() => void check(), 30000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, []);
+
+  return <div className={`flex items-center gap-2 text-xs ${status === 'online' ? 'text-emerald-400' : status === 'offline' ? 'text-amber-300' : 'text-[#9AA3AE]'}`}>
+    <span className={`h-1.5 w-1.5 rounded-full ${status === 'online' ? 'bg-emerald-400' : status === 'offline' ? 'bg-amber-300' : 'bg-gray-400'}`} />
+    {status === 'online' ? 'Backend API · online' : status === 'offline' ? 'Backend API · unavailable' : 'Backend API · checking'}
+  </div>;
 }
 
 function OverviewView() {
