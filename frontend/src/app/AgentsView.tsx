@@ -222,10 +222,16 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
           const failures = runs.filter(run => run.status === 'failed' || run.status === 'timeout').length;
           const successful = runs.filter(run => run.status === 'success');
           const average = successful.length ? successful.reduce((sum, run) => sum + run.duration_ms, 0) / successful.length : null;
+          const sortedDurations = successful.map(run => run.duration_ms).sort((a, b) => a - b);
+          const p95 = sortedDurations.length ? sortedDurations[Math.ceil(sortedDurations.length * 0.95) - 1] : null;
+          const slowThresholdMs = 15000;
+          const slowCount = successful.filter(run => run.duration_ms > slowThresholdMs).length;
           return <div className="space-y-3 rounded-lg border border-white/10 p-3">
             <div className="flex flex-wrap justify-between gap-3 text-xs text-[#9AA3AE]">
               <span>Hibaarány (utolsó {runs.length} futás): <strong className="text-white">{(failures / runs.length * 100).toFixed(1)}%</strong></span>
               <span>Átlagos sikeres futás: <strong className="text-white">{average === null ? 'Nincs adat' : `${(average / 1000).toFixed(2)} s`}</strong></span>
+              <span>P95 sikeres futás: <strong className="text-white">{p95 === null ? 'Nincs adat' : `${(p95 / 1000).toFixed(2)} s`}</strong></span>
+              <span className={slowCount ? 'text-amber-300' : 'text-[#9AA3AE]'}>Lassú futások (&gt;15 s): <strong>{slowCount}</strong></span>
             </div>
             <h4 className="text-sm font-medium">Legutóbbi {recent.length} futás időtartama</h4>
             <div role="img" aria-label="Futási idők: zöld sikeres, piros sikertelen, sárga időtúllépés" className="flex h-32 items-end gap-1 border-b border-white/20 pb-1">
