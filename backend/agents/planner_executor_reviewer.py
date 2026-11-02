@@ -154,6 +154,7 @@ planner_executor_reviewer = graph.compile(
 async def run_planner_executor_reviewer(
     task: str,
     thread_id: str | None = None,
+    history: list[dict[str, str]] | None = None,
 ):
     """Run the workflow with conversation memory."""
 
@@ -169,6 +170,7 @@ async def run_planner_executor_reviewer(
             "execution": "",
             "review": "",
             "final_answer": "",
+            "history": history or [],
         },
         config={
             "recursion_limit": 10,
