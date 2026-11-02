@@ -139,6 +139,15 @@ async def call_model(state: MessagesState):
         max_output_tokens=300,
     )
 
+    usage = response.usage
+    if usage is not None:
+        structlog.get_logger().info(
+            "agent_tool_llm_token_usage", model="gpt-4.1-mini",
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
+        )
+
     tool_calls = []
     texts = []
 
