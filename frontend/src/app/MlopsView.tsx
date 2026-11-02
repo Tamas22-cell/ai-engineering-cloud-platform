@@ -1,5 +1,6 @@
-import ExperimentTracking from './ExperimentTracking';
 'use client';
+
+import ExperimentTracking from './ExperimentTracking';
 
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 
