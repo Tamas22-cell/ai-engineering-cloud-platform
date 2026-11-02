@@ -116,7 +116,7 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
             }
         # A verbatim answer from the cited excerpts is already grounded.
         # Do not let a probabilistic second model veto direct textual evidence.
-        answer_without_citations = re.sub(r"\\[\\d+\\]", "", state["answer"])
+        answer_without_citations = re.sub(r"\[\d+\]", "", state["answer"])
         answer_without_citations = " ".join(answer_without_citations.split()).strip(" .,:;")
         evidence_normalized = " ".join(cited_evidence.split())
         directly_supported = bool(
