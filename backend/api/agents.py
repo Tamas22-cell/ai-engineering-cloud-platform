@@ -173,8 +173,21 @@ async def workflow_chat(
             step_timings_ms=result.get("step_timings_ms", {}),
         )
     except TimeoutError:
+        await _record_failed_workflow(user, thread_id, data.task, "timeout", started)
         logger.warning("agent_workflow_timeout", thread_id=str(thread_id), timeout_seconds=120)
         raise HTTPException(status_code=504, detail="AI workflow timed out after 120 seconds")
     except Exception as exc:
+        await _record_failed_workflow(user, thread_id, data.task, "failed", started)
         logger.error("agent_workflow_failed", thread_id=str(thread_id), error_type=type(exc).__name__)
         raise HTTPException(status_code=503, detail="AI workflow unavailable")
+
+
+async def _record_failed_workflow(user, thread_id, task: str, status: str, started: float) -> None:
+    """Best-effort telemetry must never hide the original workflow error."""
+    try:
+        await record_workflow_run(
+            str(user.id), str(thread_id), task, status,
+            round((perf_counter() - started) * 1000, 2), {},
+        )
+    except Exception as exc:
+        logger.error("agent_workflow_failure_record_failed", error_type=type(exc).__name__)
