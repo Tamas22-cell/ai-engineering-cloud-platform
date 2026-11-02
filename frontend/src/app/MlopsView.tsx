@@ -36,6 +36,8 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   const [runs, setRuns] = useState<Record<string, ModelRun[]>>({});
   const [loading, setLoading] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [recordingModel, setRecordingModel] = useState<string | null>(null);
+  const [runValues, setRunValues] = useState<Record<string, string>>({});
   const [summaries, setSummaries] = useState<Record<string, MetricSummary>>({});
   const [metricNames, setMetricNames] = useState<Record<string, string>>({});
   const [thresholds, setThresholds] = useState<Record<string, string>>({});
@@ -149,6 +151,47 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     }
   }
 
+  async function recordMetric(modelId: string) {
+    if (!auth) { setError('Jelentkezz be először.'); return; }
+    const metricValue = Number(runValues[modelId] ?? '');
+    if (!(runValues[modelId] ?? '').trim() || !Number.isFinite(metricValue)) {
+      setError('Adj meg egy érvényes, véges metrikaértéket.'); return;
+    }
+    const metricName = (metricNames[modelId] || 'accuracy').trim();
+    if (!metricName) { setError('Adj meg metrikanevet.'); return; }
+    setRecordingModel(modelId);
+    setError('');
+    try {
+      const request = (token: string) => fetchWithTimeout(`${API}/mlops/models/${encodeURIComponent(modelId)}/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ metric_name: metricName, metric_value: metricValue, duration_ms: 0 }),
+      });
+      let response = await request(auth.access_token);
+      if (response.status === 401) {
+        const refreshed = await fetchWithTimeout(`${API}/auth/refresh`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: auth.refresh_token }),
+        });
+        if (!refreshed.ok) { setAuth(null); throw new Error('A munkamenet lejárt.'); }
+        const tokens = await refreshed.json() as AuthResponse;
+        setAuth(tokens);
+        response = await request(tokens.access_token);
+      }
+      if (!response.ok) {
+        if (response.status === 403) throw new Error('Metrikát csak admin vagy developer rögzíthet.');
+        throw new Error(`Metrikarögzítés sikertelen: HTTP ${response.status}`);
+      }
+      setRunValues(previous => ({ ...previous, [modelId]: '' }));
+      await loadRuns(modelId);
+      await loadSummary(modelId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Metrikarögzítés sikertelen.');
+    } finally {
+      setRecordingModel(null);
+    }
+  }
+
   async function loadRuns(modelId: string) {
     try {
       if (!auth) throw new Error('Jelentkezz be az Agents vagy a RAG oldalon.');
@@ -219,6 +262,8 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
           <option value="below">Alatta</option><option value="above">Felett</option>
         </select>
         <button className="underline text-cyan-300" onClick={() => loadSummary(m.id)}>Metrika lekérdezése</button>
+        <input aria-label={`Új metrikaérték: ${m.name}`} type="number" step="any" value={runValues[m.id] ?? ''} onChange={e => setRunValues(p => ({ ...p, [m.id]: e.target.value }))} placeholder="Új érték" className="w-24 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
+        <button disabled={!auth || recordingModel === m.id} className="rounded bg-cyan-500 px-2 py-1 text-xs text-black disabled:opacity-50" onClick={() => recordMetric(m.id)}>{recordingModel === m.id ? "Mentés..." : "Mérés rögzítése"}</button>
       </div>
       {summaries[m.id] && <div className="mt-2 text-xs">
         <p>{summaries[m.id].metric_name}: {summaries[m.id].latest.toFixed(3)} · Átlag: {summaries[m.id].average.toFixed(3)} · Változás: {summaries[m.id].delta.toFixed(3)}</p>
