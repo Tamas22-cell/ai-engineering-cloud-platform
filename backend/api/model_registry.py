@@ -37,7 +37,6 @@ class ModelRead(BaseModel):
 @router.get("", response_model=list[ModelRead])
 async def list_models(
     limit: int = Query(50, ge=1, le=100),
-    user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(RegisteredModel).order_by(RegisteredModel.created_at.desc()).limit(limit))
