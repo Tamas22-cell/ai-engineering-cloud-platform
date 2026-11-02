@@ -308,22 +308,41 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
         <p>{summaries[m.id].metric_name}: {summaries[m.id].latest.toFixed(3)} · Átlag: {summaries[m.id].average.toFixed(3)} · Változás: {summaries[m.id].delta.toFixed(3)}</p>
         <p className={summaries[m.id].alert ? 'text-red-300' : 'text-emerald-300'}>{summaries[m.id].threshold === null ? 'Nincs riasztási küszöb' : summaries[m.id].alert ? 'Figyelmeztetés: küszöb átlépve' : 'Nincs riasztás'}</p>
       </div>}
-      {runs[m.id] && runs[m.id].filter(run => run.metric_name === (metricNames[m.id] ?? (m.name === 'Synthetic Regression Baseline' ? 'mae' : 'accuracy')).trim()).length > 0 && (() => {
-        const selected = runs[m.id].filter(run => run.metric_name === (metricNames[m.id] ?? (m.name === 'Synthetic Regression Baseline' ? 'mae' : 'accuracy')).trim());
+      {runs[m.id] && (() => {
+        const selectedMetric = (metricNames[m.id] ?? (m.name === 'Synthetic Regression Baseline' ? 'mae' : 'accuracy')).trim();
+        const selected = runs[m.id].filter(run => run.metric_name === selectedMetric);
         const values = [...selected].reverse().map(run => run.metric_value).filter(Number.isFinite);
-        if (!values.length) return null;
-        const min = Math.min(0, ...values);
-        const max = Math.max(0, ...values);
+        const allMetrics = [...new Set(runs[m.id].map(run => run.metric_name))];
+        const min = values.length ? Math.min(...values) : 0;
+        const max = values.length ? Math.max(...values) : 0;
+        const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
         const span = max - min || 1;
-        return <div className="mt-3 rounded-lg border border-white/10 p-3">
-          <p className="mb-2 text-xs text-slate-300">Valós modellfutások · {metricNames[m.id] ?? (m.name === 'Synthetic Regression Baseline' ? 'mae' : 'accuracy')} · {values.length} mérés</p>
-          <div role="img" aria-label={`Metrikatrend: ${values.map(v => v.toFixed(3)).join(', ')}`} className="flex h-28 items-end gap-1 overflow-x-auto">
-            {values.map((value, index) => <div key={index} title={`${value.toFixed(4)}`} className="min-w-2 flex-1 rounded-t bg-cyan-400/80" style={{ height: `${Math.max(3, ((value - min) / span) * 100)}%` }} />)}
+        return <div className="mt-3 space-y-3 rounded-xl border border-white/10 bg-slate-950/40 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong className="text-sm text-slate-100">Mérési dashboard</strong>
+            <span className="text-xs text-slate-400">{runs[m.id].length} tárolt futás · szintetikus tesztadatok</span>
           </div>
-          <p className="mt-2 text-xs text-slate-400">Min: {Math.min(...values).toFixed(3)} · Max: {Math.max(...values).toFixed(3)} · A grafikon kizárólag lekért futásokból készül.</p>
+          <div className="flex flex-wrap gap-2">
+            {allMetrics.map(metric => <button key={metric} type="button" onClick={() => setMetricNames(prev => ({ ...prev, [m.id]: metric }))} className={`rounded-md border px-3 py-1 text-xs ${metric === selectedMetric ? 'border-cyan-400 bg-cyan-400/15 text-cyan-200' : 'border-white/15 text-slate-300'}`}>{metric.toUpperCase()}</button>)}
+          </div>
+          {values.length ? <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {([['Mérések', String(values.length)], ['Átlag', average.toFixed(4)], ['Minimum', min.toFixed(4)], ['Maximum', max.toFixed(4)]] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-white/10 bg-white/5 p-2"><p className="text-xs text-slate-400">{label}</p><p className="mt-1 text-base font-semibold tabular-nums text-slate-100">{value}</p></div>)}
+            </div>
+            <div role="img" aria-label={`${selectedMetric} trend: ${values.map(v => v.toFixed(3)).join(', ')}`} className="flex h-36 items-end gap-1 rounded-lg border border-white/10 bg-black/20 p-3">
+              {values.map((value, index) => <div key={index} title={`Mérés ${index + 1}: ${value.toFixed(4)}`} className="min-w-1 flex-1 rounded-t bg-cyan-400/80" style={{ height: `${Math.max(5, ((value - min) / span) * 85 + 15)}%` }} />)}
+            </div>
+            <p className="text-xs text-slate-400">{selectedMetric.toUpperCase()} · {values.length} mérés · a grafikon az API-ból lekért futásokon alapul.</p>
+          </> : <p className="text-xs text-slate-400">Ehhez a metrikához még nincs mérés.</p>}
+          <details className="rounded-lg border border-white/10 p-2">
+            <summary className="cursor-pointer text-xs font-medium text-cyan-200">Nyers mérési előzmények ({runs[m.id].length})</summary>
+            <div className="mt-2 max-h-52 space-y-1 overflow-y-auto text-xs text-slate-300">
+              {runs[m.id].map(run => <p key={run.id} className="tabular-nums">{run.metric_name.toUpperCase()}: {run.metric_value.toFixed(5)} ({run.duration_ms} ms)</p>)}
+            </div>
+          </details>
         </div>;
       })()}
-      {runs[m.id] && <div className="mt-2 text-xs">{runs[m.id].length ? runs[m.id].map(run => <p key={run.id}>{run.metric_name}: {run.metric_value} ({run.duration_ms} ms)</p>) : "Nincs rögzített futás"}</div>}</td></tr>)}</tbody>
+      </td></tr>)}</tbody>
       </table>
     </div>
     {!modelsLoaded && !loading && <p className="text-sm text-[#9AA3AE]">A nyilvános modelladatok betöltése még nem sikerült. Kattints a Modellek lekérdezése gombra.</p>}
