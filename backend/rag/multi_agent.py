@@ -4,6 +4,7 @@ The caller supplies an authenticated user's database session. Retrieval is alway
 scoped to that user; documents are treated as data, never instructions.
 """
 import asyncio
+import logging
 import os
 import re
 import time
@@ -17,6 +18,8 @@ from rag.embedding_service import EmbeddingService
 from rag.persistent_search import search_stored_documents
 from rag.answer_generator import RAGAnswerGenerator
 from rag.semantic_reviewer import verify_answer_support
+
+logger = logging.getLogger(__name__)
 
 logger = structlog.get_logger(__name__)
 
