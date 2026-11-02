@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import RagView from './RagView';
 import AgentsView from './AgentsView';
 import MlopsView from './MlopsView';
+import DataEngineeringView from './DataEngineeringView';
 
 type SharedAuth = { access_token: string; refresh_token: string };
 
@@ -131,7 +132,7 @@ export default function HomePage() {
             <MlopsView auth={auth} setAuth={setAuth} />
           )}
           {active === 'data' && (
-            <Placeholder title="Data Engineering" phase="Phase 4" />
+            <DataEngineeringView />
           )}
           {active === 'devops' && (
             <Placeholder title="DevOps & CI/CD" phase="Phase 2 / 5" />
