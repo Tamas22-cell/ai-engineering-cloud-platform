@@ -4,6 +4,7 @@ The caller supplies an authenticated user's database session. Retrieval is alway
 scoped to that user; documents are treated as data, never instructions.
 """
 import asyncio
+import os
 import re
 import time
 from typing import TypedDict
@@ -14,6 +15,7 @@ from opentelemetry import trace
 from rag.embedding_service import EmbeddingService
 from rag.persistent_search import search_stored_documents
 from rag.answer_generator import RAGAnswerGenerator
+from rag.semantic_reviewer import verify_answer_support
 
 
 class RAGState(TypedDict):
@@ -108,6 +110,11 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
                 "sources": trusted_sources,
                 "verified": False,
             }
+        if verified and os.getenv("RAG_SEMANTIC_REVIEW_ENABLED", "false").lower() == "true":
+            try:
+                verified = await verify_answer_support(state["answer"], documents)
+            except Exception:
+                verified = False  # Fail closed on timeout, API errors or ambiguous verdicts.
         return {"sources": trusted_sources, "verified": verified}
 
     def instrument(name, node):
