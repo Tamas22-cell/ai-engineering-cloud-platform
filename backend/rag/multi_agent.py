@@ -127,7 +127,7 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
         # the cited PDF chunks, without a second model rejecting valid text.
         code_question = bool(re.search(r"tesztkód|test.code", state["question"], re.I))
         code_answer = re.fullmatch(
-            r"A projekt tesztkódja[:\s]+([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+)[.!]?\s*(?:\[\d+\]\s*)+\.?",
+            r"A projekt tesztkódja[:\s]+([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+)[.!]?\s*\[\d+\](?:\s*,\s*\[\d+\]|\s*\[\d+\])*\.?",
             state["answer"].strip(), re.I,
         )
         if verified and code_question and code_answer:
