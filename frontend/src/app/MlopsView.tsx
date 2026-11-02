@@ -35,6 +35,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   const [error, setError] = useState('');
   const [runs, setRuns] = useState<Record<string, ModelRun[]>>({});
   const [loading, setLoading] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
   const [summaries, setSummaries] = useState<Record<string, MetricSummary>>({});
   const [metricNames, setMetricNames] = useState<Record<string, string>>({});
   const [thresholds, setThresholds] = useState<Record<string, string>>({});
@@ -140,6 +141,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       const response = await authorizedGet('/mlops/models');
       if (!response.ok) throw new Error(`Model Registry API: HTTP ${response.status}`);
       setModels(await response.json() as Model[]);
+      setModelsLoaded(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Az API nem elérhető.');
     } finally {
@@ -240,6 +242,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       {runs[m.id] && <div className="mt-2 text-xs">{runs[m.id].length ? runs[m.id].map(run => <p key={run.id}>{run.metric_name}: {run.metric_value} ({run.duration_ms} ms)</p>) : "Nincs rögzített futás"}</div>}</td></tr>)}</tbody>
       </table>
     </div>
-    {!models.length && !loading && <p className="text-sm text-[#9AA3AE]">Nincs betöltött modell. Az adatokat a backendről kell lekérni.</p>}
+    {!modelsLoaded && !loading && <p className="text-sm text-[#9AA3AE]">A modelladatok még nincsenek lekérdezve. Bejelentkezés után kattints a Modellek lekérdezése gombra.</p>}
+    {modelsLoaded && !models.length && !loading && <p className="text-sm text-[#9AA3AE]">A Model Registry API sikeresen válaszolt, de még nincs regisztrált modell.</p>}
   </section>;
 }
