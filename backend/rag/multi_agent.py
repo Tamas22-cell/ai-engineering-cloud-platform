@@ -88,10 +88,11 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
         verified = bool(documents and cited and cited.issubset(valid))
         # Ground exact identifiers in the cited excerpts, not unrelated pages.
         identifiers = set(re.findall(
-            r"(?<![\\w-])[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+(?![\\w-])",
+        
+            r"(?<![\w-])[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+(?![\w-])",
             state["answer"],
         ))
-        cited_evidence = "\\n".join(
+        cited_evidence = "\n".join(
             str(documents[int(ref) - 1].get("text", ""))
             for ref in cited if ref in valid
         )
