@@ -84,7 +84,7 @@ class RunCreate(BaseModel):
 
 
 class RunRead(BaseModel):
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
     id: str
     model_id: str
     metric_name: str
