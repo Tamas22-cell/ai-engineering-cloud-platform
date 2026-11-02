@@ -99,8 +99,15 @@ async def update_run_status(run_id: str, data: RunStatusUpdate, user=Depends(req
     item = await db.get(MLExperimentRun, valid_id(run_id))
     if item is None:
         raise HTTPException(status_code=404, detail="Run not found")
-    if item.status in ("completed", "failed", "cancelled") and item.status != data.status:
-        raise HTTPException(status_code=409, detail="Terminal run cannot change status")
+    allowed_transitions = {
+        "pending": {"running", "cancelled"},
+        "running": {"completed", "failed", "cancelled"},
+        "completed": set(),
+        "failed": set(),
+        "cancelled": set(),
+    }
+    if data.status not in allowed_transitions[item.status]:
+        raise HTTPException(status_code=409, detail=f"Invalid run status transition: {item.status} -> {data.status}")
     if data.status == "running" and item.started_at is None:
         item.started_at = datetime.now(timezone.utc)
     if data.status in ("completed", "failed", "cancelled") and item.finished_at is None:
