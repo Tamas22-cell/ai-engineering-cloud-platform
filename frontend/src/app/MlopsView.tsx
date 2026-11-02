@@ -46,15 +46,22 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   useEffect(() => {
     if (!auth) { setCurrentUser(null); setProfile(null); setModelsLoaded(false); setModels([]); return; }
     let cancelled = false;
-    const controller = new AbortController();
     async function checkPermissions() {
       try {
-        const response = await fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${auth!.access_token}` }, signal: controller.signal, cache: 'no-store' });
+        let response = await fetchWithTimeout(`${API}/auth/me`, { headers: { Authorization: `Bearer ${auth!.access_token}` }, cache: 'no-store' });
+        if (response.status === 401) {
+          const refreshed = await fetchWithTimeout(`${API}/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: auth!.refresh_token }) });
+          if (refreshed.ok) {
+            const tokens = await refreshed.json() as AuthResponse;
+            if (!cancelled) setAuth(tokens);
+            response = await fetchWithTimeout(`${API}/auth/me`, { headers: { Authorization: `Bearer ${tokens.access_token}` }, cache: 'no-store' });
+          } else if (!cancelled) { setAuth(null); return; }
+        }
         if (response.ok && !cancelled) setCurrentUser(await response.json() as CurrentUser);
       } catch { /* The manual role check remains available if the API is temporarily offline. */ }
     }
     void checkPermissions();
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; };
   }, [auth]);
 
   async function authorizedGet(path: string): Promise<Response> {
@@ -82,7 +89,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   async function createModel(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!auth) { setError('Jelentkezz be először.'); return; }
-    if (currentUser && !['admin', 'developer'].includes(currentUser.role)) { setError('Modellt csak admin vagy developer regisztrálhat.'); return; }
+    if (!currentUser || !['admin', 'developer'].includes(currentUser.role)) { setError('Modellt csak admin vagy developer regisztrálhat.'); return; }
     if (!newName.trim() || !newVersion.trim() || !newFramework.trim()) {
       setError('Minden mező kitöltése kötelező.'); return;
     }
@@ -168,6 +175,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
 
   async function recordMetric(modelId: string) {
     if (!auth) { setError('Jelentkezz be először.'); return; }
+    if (!currentUser || !['admin', 'developer'].includes(currentUser.role)) { setError('Metrikát csak admin vagy developer rögzíthet.'); return; }
     const metricValue = Number(runValues[modelId] ?? '');
     if (!(runValues[modelId] ?? '').trim() || !Number.isFinite(metricValue)) {
       setError('Adj meg egy érvényes, véges metrikaértéket.'); return;
@@ -234,6 +242,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       const params = new URLSearchParams({ direction });
       if (parsedThreshold !== null) params.set('threshold', String(parsedThreshold));
       const response = await authorizedGet(`/mlops/models/${encodeURIComponent(modelId)}/metrics/${encodeURIComponent(metricName)}/summary?${params}`);
+      if (response.status === 404) { setSummaries(previous => { const next = { ...previous }; delete next[modelId]; return next; }); throw new Error(`Ehhez a metrikához még nincs mérés: ${metricName}`); }
       if (!response.ok) throw new Error(`Metric summary: HTTP ${response.status}`);
       const data = (await response.json()) as MetricSummary;
       setSummaries(previous => ({ ...previous, [modelId]: data }));
@@ -287,7 +296,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       </div>}
       {runs[m.id] && runs[m.id].filter(run => run.metric_name === (metricNames[m.id] || 'accuracy').trim()).length > 0 && (() => {
         const selected = runs[m.id].filter(run => run.metric_name === (metricNames[m.id] || 'accuracy').trim());
-        const values = selected.map(run => run.metric_value).filter(Number.isFinite);
+        const values = [...selected].reverse().map(run => run.metric_value).filter(Number.isFinite);
         if (!values.length) return null;
         const min = Math.min(0, ...values);
         const max = Math.max(0, ...values);
