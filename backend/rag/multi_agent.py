@@ -11,11 +11,14 @@ from typing import TypedDict
 
 from langgraph.graph import StateGraph, START, END
 from opentelemetry import trace
+import structlog
 
 from rag.embedding_service import EmbeddingService
 from rag.persistent_search import search_stored_documents
 from rag.answer_generator import RAGAnswerGenerator
 from rag.semantic_reviewer import verify_answer_support
+
+logger = structlog.get_logger(__name__)
 
 
 class RAGState(TypedDict):
@@ -113,7 +116,11 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
         if verified and os.getenv("RAG_SEMANTIC_REVIEW_ENABLED", "false").lower() == "true":
             try:
                 verified = await verify_answer_support(state["answer"], documents)
-            except Exception:
+                if not verified:
+                    logger.warning("rag_semantic_review_rejected")
+            except Exception as exc:
+                # Do not log document content, answers, API keys, or raw exceptions.
+                logger.warning("rag_semantic_review_error", error_type=type(exc).__name__)
                 verified = False  # Fail closed on timeout, API errors or ambiguous verdicts.
         return {"sources": trusted_sources, "verified": verified}
 
