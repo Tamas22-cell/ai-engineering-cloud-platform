@@ -4,7 +4,6 @@ The caller supplies an authenticated user's database session. Retrieval is alway
 scoped to that user; documents are treated as data, never instructions.
 """
 import asyncio
-import logging
 import os
 import re
 import time
@@ -18,8 +17,6 @@ from rag.embedding_service import EmbeddingService
 from rag.persistent_search import search_stored_documents
 from rag.answer_generator import RAGAnswerGenerator
 from rag.semantic_reviewer import verify_answer_support
-
-logger = logging.getLogger(__name__)
 
 logger = structlog.get_logger(__name__)
 
@@ -126,8 +123,21 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
             verified and answer_without_citations
             and answer_without_citations in evidence_normalized
         )
+        # Exact test-code answers can be checked deterministically against
+        # the cited PDF chunks, without a second model rejecting valid text.
+        code_question = bool(re.search(r"tesztkód|test.code", state["question"], re.I))
+        code_answer = re.fullmatch(
+            r"A projekt tesztkódja[:\\s]+([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+)[.!]?\\s*(?:\\[\\d+\\]\\s*)+\\.?",
+            state["answer"].strip(), re.I,
+        )
+        if verified and code_question and code_answer:
+            code = code_answer.group(1)
+            directly_supported = any(
+                code in str(documents[int(ref) - 1].get("text", ""))
+                for ref in cited if ref in valid
+            )
         if directly_supported:
-            logger.info("rag_review_verified", method="verbatim_cited_evidence")
+            logger.info("rag_review_verified", method="direct_cited_evidence")
         if verified and not directly_supported and os.getenv("RAG_SEMANTIC_REVIEW_ENABLED", "false").lower() == "true":
             try:
                 verified = await verify_answer_support(state["answer"], documents)
