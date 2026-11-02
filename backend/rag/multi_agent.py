@@ -114,7 +114,18 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
                 "sources": trusted_sources,
                 "verified": False,
             }
-        if verified and os.getenv("RAG_SEMANTIC_REVIEW_ENABLED", "false").lower() == "true":
+        # A verbatim answer from the cited excerpts is already grounded.
+        # Do not let a probabilistic second model veto direct textual evidence.
+        answer_without_citations = re.sub(r"\\[\\d+\\]", "", state["answer"])
+        answer_without_citations = " ".join(answer_without_citations.split()).strip(" .,:;")
+        evidence_normalized = " ".join(cited_evidence.split())
+        directly_supported = bool(
+            verified and answer_without_citations
+            and answer_without_citations in evidence_normalized
+        )
+        if directly_supported:
+            logger.info("rag_review_verified", method="verbatim_cited_evidence")
+        if verified and not directly_supported and os.getenv("RAG_SEMANTIC_REVIEW_ENABLED", "false").lower() == "true":
             try:
                 verified = await verify_answer_support(state["answer"], documents)
                 if not verified:
