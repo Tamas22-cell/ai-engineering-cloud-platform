@@ -197,3 +197,27 @@ async def test_multi_agent_empty_results_have_no_generation_usage(monkeypatch):
     )
     assert result["usage"] == {}
     generator.generate_answer.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_multi_agent_rejects_fabricated_identifier(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    generator.generate_answer.return_value = {
+        "answer": "A projekt tesztkódja RAG-FAKE-9999 [1].",
+        "sources": [{"id": 1, "source": "test.pdf", "page": 1}],
+    }
+    monkeypatch.setattr(
+        multi_agent, "search_stored_documents",
+        AsyncMock(return_value=[{
+            "source": "test.pdf", "page": 1,
+            "text": "A projekt tesztkódja RAG-QUANTUM-7429.",
+        }]),
+    )
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Mi a projekt tesztkódja?",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["verified"] is False
+    assert "nem található" in result["answer"]
