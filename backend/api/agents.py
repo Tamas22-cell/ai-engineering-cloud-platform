@@ -103,7 +103,7 @@ async def tool_chat(
         )
 from uuid import UUID, uuid4
 from agents.planner_executor_reviewer import run_planner_executor_reviewer
-from agents.postgres_memory import load_history, save_history
+from agents.postgres_memory import load_history, save_history, record_workflow_run, list_workflow_runs
 
 
 class WorkflowRequest(BaseModel):
@@ -119,6 +119,26 @@ class WorkflowResponse(BaseModel):
     review: str
     duration_ms: float
     step_timings_ms: dict[str, float] = Field(default_factory=dict)
+
+
+class WorkflowRunRead(BaseModel):
+    id: UUID
+    thread_id: UUID
+    task: str
+    status: str
+    duration_ms: float
+    step_timings: dict[str, float]
+    created_at: str
+
+
+@router.get("/workflow/runs", response_model=list[WorkflowRunRead])
+async def workflow_runs(user=Depends(get_current_user)):
+    try:
+        runs = await list_workflow_runs(str(user.id))
+        return [{**run, "created_at": run["created_at"].isoformat()} for run in runs]
+    except Exception as exc:
+        logger.error("agent_workflow_history_failed", error_type=type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Workflow history unavailable")
 
 
 @router.post("/workflow", response_model=WorkflowResponse)
@@ -141,6 +161,7 @@ async def workflow_chat(
         )
         await save_history(str(user.id), str(thread_id), result.get("history", []))
         duration_ms = round((perf_counter() - started) * 1000, 2)
+        await record_workflow_run(str(user.id), str(thread_id), data.task, "success", duration_ms, result.get("step_timings_ms", {}))
         logger.info("agent_workflow_completed", thread_id=str(thread_id), duration_ms=duration_ms)
         return WorkflowResponse(
             thread_id=thread_id,
