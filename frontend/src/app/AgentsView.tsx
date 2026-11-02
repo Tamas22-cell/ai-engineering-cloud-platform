@@ -19,6 +19,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [runsError, setRunsError] = useState('');
   const [runsRefresh, setRunsRefresh] = useState(0);
+  const [runFilter, setRunFilter] = useState('all');
 
   useEffect(() => {
     // The backend scopes saved history by authenticated user ID.
@@ -191,10 +192,33 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         ))}
       </div>}
       {mode === 'workflow' && auth && <section className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-4">
-        <h3 className="font-semibold">Korábbi agentfuttatások</h3>
+        
+<h3 className="font-semibold">Agent Monitoring Dashboard</h3>
+<button type="button" onClick={() => setRunsRefresh(n => n + 1)}
+  className="rounded border border-white/20 px-3 py-2 text-xs">
+  Refresh
+</button>
+<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+  {(['all', 'success', 'failed', 'timeout'] as const).map(status => (
+    <div key={status} className="rounded border border-white/10 p-3">
+      <p className="text-xs">{status}</p>
+      <p className="text-xl font-semibold">
+        {status === 'all' ? runs.length : runs.filter(r => r.status === status).length}
+      </p>
+    </div>
+  ))}
+</div>
+<select value={runFilter} onChange={e => setRunFilter(e.target.value)}
+  className="rounded bg-[#11151C] p-2 text-white">
+  <option value="all">All</option>
+  <option value="success">Success</option>
+  <option value="failed">Failed</option>
+  <option value="timeout">Timeout</option>
+</select>
+
         {runsError && <p className="text-xs text-amber-300">{runsError}</p>}
         {!runsError && runs.length === 0 && <p className="text-xs text-[#9AA3AE]">Még nincs mentett futás.</p>}
-        {runs.map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs">
+        {runs.filter(run => runFilter === 'all' || run.status === runFilter).map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs">
           <div className="flex justify-between gap-3"><span className="font-medium break-words">{run.task}</span><span className={`shrink-0 ${run.status === "success" ? "text-emerald-300" : run.status === "timeout" ? "text-amber-300" : "text-red-300"}`}>{run.status === "success" ? "Sikeres" : run.status === "timeout" ? "Időtúllépés" : "Sikertelen"}</span></div>
           <p className="mt-1 text-[#9AA3AE]">{new Date(run.created_at).toLocaleString('hu-HU')} · {(run.duration_ms / 1000).toFixed(2)} s</p>
           <details className="mt-2 rounded border border-white/10 p-2">
