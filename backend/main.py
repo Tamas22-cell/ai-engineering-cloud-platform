@@ -120,3 +120,6 @@ app.include_router(rag_index_router)
 
 from api.model_registry import router as model_registry_router
 app.include_router(model_registry_router)
+
+from api.experiments import router as experiments_router
+app.include_router(experiments_router)
