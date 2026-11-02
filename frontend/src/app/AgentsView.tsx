@@ -216,6 +216,27 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
   <option value="timeout">Timeout</option>
 </select>
 
+        {!runsError && runs.length > 0 && (() => {
+          const recent = [...runs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).slice(-12);
+          const maxDuration = Math.max(1, ...recent.map(run => run.duration_ms));
+          const failures = runs.filter(run => run.status === 'failed' || run.status === 'timeout').length;
+          const successful = runs.filter(run => run.status === 'success');
+          const average = successful.length ? successful.reduce((sum, run) => sum + run.duration_ms, 0) / successful.length : null;
+          return <div className="space-y-3 rounded-lg border border-white/10 p-3">
+            <div className="flex flex-wrap justify-between gap-3 text-xs text-[#9AA3AE]">
+              <span>Hibaarány (utolsó {runs.length} futás): <strong className="text-white">{(failures / runs.length * 100).toFixed(1)}%</strong></span>
+              <span>Átlagos sikeres futás: <strong className="text-white">{average === null ? 'Nincs adat' : `${(average / 1000).toFixed(2)} s`}</strong></span>
+            </div>
+            <h4 className="text-sm font-medium">Legutóbbi {recent.length} futás időtartama</h4>
+            <div role="img" aria-label="Futási idők: zöld sikeres, piros sikertelen, sárga időtúllépés" className="flex h-32 items-end gap-1 border-b border-white/20 pb-1">
+              {recent.map(run => <div key={run.id} title={`${new Date(run.created_at).toLocaleString('hu-HU')} · ${run.status} · ${(run.duration_ms / 1000).toFixed(2)} s`} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1 h-full">
+                <span className="text-[9px] text-[#9AA3AE]">{(run.duration_ms / 1000).toFixed(1)}s</span>
+                <div className={`w-full max-w-10 rounded-t ${run.status === 'success' ? 'bg-emerald-400' : run.status === 'timeout' ? 'bg-amber-400' : 'bg-red-400'}`} style={{ height: `${Math.max(5, run.duration_ms / maxDuration * 100)}%` }} />
+              </div>)}
+            </div>
+            <p className="text-xs text-[#9AA3AE]">Az adatok a legutóbbi {runs.length} mentett futásból származnak, nem az összes korábbi futásból.</p>
+          </div>;
+        })()}
         {runsError && <p className="text-xs text-amber-300">{runsError}</p>}
         {!runsError && runs.length === 0 && <p className="text-xs text-[#9AA3AE]">Még nincs mentett futás.</p>}
         {runs.filter(run => runFilter === 'all' || run.status === runFilter).map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs">
