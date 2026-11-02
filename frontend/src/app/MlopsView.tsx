@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 
 type AuthResponse = { access_token: string; refresh_token: string };
 type MetricSummary = { metric_name: string; latest: number; average: number; delta: number; threshold: number | null; alert: boolean; count: number };
@@ -43,6 +43,20 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   const [thresholds, setThresholds] = useState<Record<string, string>>({});
   const [directions, setDirections] = useState<Record<string, 'below' | 'above'>>({});
 
+  useEffect(() => {
+    if (!auth) { setCurrentUser(null); setProfile(null); setModelsLoaded(false); setModels([]); return; }
+    let cancelled = false;
+    const controller = new AbortController();
+    async function checkPermissions() {
+      try {
+        const response = await fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${auth!.access_token}` }, signal: controller.signal, cache: 'no-store' });
+        if (response.ok && !cancelled) setCurrentUser(await response.json() as CurrentUser);
+      } catch { /* The manual role check remains available if the API is temporarily offline. */ }
+    }
+    void checkPermissions();
+    return () => { cancelled = true; controller.abort(); };
+  }, [auth]);
+
   async function authorizedGet(path: string): Promise<Response> {
     if (!auth) throw new Error('Jelentkezz be az Agents vagy a RAG oldalon.');
     const request = (accessToken: string) => fetchWithTimeout(`${API}${path}`, {
@@ -68,6 +82,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   async function createModel(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!auth) { setError('Jelentkezz be először.'); return; }
+    if (currentUser && !['admin', 'developer'].includes(currentUser.role)) { setError('Modellt csak admin vagy developer regisztrálhat.'); return; }
     if (!newName.trim() || !newVersion.trim() || !newFramework.trim()) {
       setError('Minden mező kitöltése kötelező.'); return;
     }
@@ -243,13 +258,14 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     </div>
     <form onSubmit={createModel} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
       <h3 className="font-semibold">Új modell regisztrálása</h3>
+      {currentUser && !['admin', 'developer'].includes(currentUser.role) && <p role="status" className="text-sm text-amber-300">A {currentUser.role} szerepkör csak olvasási jogosultsággal rendelkezik. Regisztrációhoz admin vagy developer fiók szükséges.</p>}
       <p className="text-xs text-slate-400">Valós Model Registry API · admin/developer jogosultság szükséges.</p>
       <div className="flex flex-wrap gap-2">
         <input aria-label="Modell neve" required maxLength={120} value={newName} onChange={e => setNewName(e.target.value)} placeholder="Modell neve" className="min-w-40 flex-1 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
         <input aria-label="Modell verziója" required maxLength={80} value={newVersion} onChange={e => setNewVersion(e.target.value)} placeholder="Verzió" className="w-28 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
         <input aria-label="Framework" required maxLength={60} value={newFramework} onChange={e => setNewFramework(e.target.value)} placeholder="Framework" className="w-32 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
       </div>
-      <button type="submit" disabled={!auth || creating} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{creating ? 'Regisztrálás...' : 'Modell regisztrálása'}</button>
+      <button type="submit" disabled={!auth || creating || !currentUser || !['admin', 'developer'].includes(currentUser.role)} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{creating ? 'Regisztrálás...' : 'Modell regisztrálása'}</button>
     </form>
     {error && <p role="alert" className="text-red-300">{error}</p>}
     <div className="overflow-x-auto rounded-xl border border-white/10">
@@ -263,7 +279,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
         </select>
         <button className="underline text-cyan-300" onClick={() => loadSummary(m.id)}>Metrika lekérdezése</button>
         <input aria-label={`Új metrikaérték: ${m.name}`} type="number" step="any" value={runValues[m.id] ?? ''} onChange={e => setRunValues(p => ({ ...p, [m.id]: e.target.value }))} placeholder="Új érték" className="w-24 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
-        <button disabled={!auth || recordingModel === m.id} className="rounded bg-cyan-500 px-2 py-1 text-xs text-black disabled:opacity-50" onClick={() => recordMetric(m.id)}>{recordingModel === m.id ? "Mentés..." : "Mérés rögzítése"}</button>
+        <button disabled={!auth || recordingModel === m.id || !currentUser || !['admin', 'developer'].includes(currentUser.role)} className="rounded bg-cyan-500 px-2 py-1 text-xs text-black disabled:opacity-50" onClick={() => recordMetric(m.id)}>{recordingModel === m.id ? "Mentés..." : "Mérés rögzítése"}</button>
       </div>
       {summaries[m.id] && <div className="mt-2 text-xs">
         <p>{summaries[m.id].metric_name}: {summaries[m.id].latest.toFixed(3)} · Átlag: {summaries[m.id].average.toFixed(3)} · Változás: {summaries[m.id].delta.toFixed(3)}</p>
