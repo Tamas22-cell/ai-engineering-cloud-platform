@@ -14,11 +14,14 @@ def test_experiment_migration_is_alembic_head():
 
 
 def test_experiment_migration_creates_only_isolated_tables(monkeypatch):
-    import importlib
+    import importlib.util
 
-    migration = importlib.import_module(
-        "migrations.versions.e91b7c4a620f_add_ml_experiment_tracking"
-    )
+    root = Path(__file__).resolve().parents[1]
+    migration_path = root / "migrations" / "versions" / "e91b7c4a620f_add_ml_experiment_tracking.py"
+    spec = importlib.util.spec_from_file_location("experiment_tracking_migration", migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
     created = []
     indexes = []
     monkeypatch.setattr(migration.op, "create_table", lambda name, *args, **kwargs: created.append(name))
