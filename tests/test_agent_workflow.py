@@ -69,3 +69,25 @@ async def test_workflow_timeout_is_recorded(monkeypatch):
         )
     assert error.value.status_code == 504
     assert agents.record_workflow_run.await_args.args[3] == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_workflow_failure_is_recorded(monkeypatch):
+    from types import SimpleNamespace
+    from uuid import uuid4
+    from fastapi import HTTPException
+    from api import agents
+
+    monkeypatch.setattr(agents, "load_history", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        agents, "run_planner_executor_reviewer",
+        AsyncMock(side_effect=RuntimeError("simulated agent failure")),
+    )
+    monkeypatch.setattr(agents, "record_workflow_run", AsyncMock())
+
+    with pytest.raises(HTTPException) as error:
+        await agents.workflow_chat(
+            agents.WorkflowRequest(task="Failure teszt"), SimpleNamespace(id=uuid4())
+        )
+    assert error.value.status_code == 503
+    assert agents.record_workflow_run.await_args.args[3] == "failed"
