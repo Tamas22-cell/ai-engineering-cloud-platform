@@ -102,6 +102,7 @@ async def tool_chat(
         )
 from uuid import UUID, uuid4
 from agents.planner_executor_reviewer import run_planner_executor_reviewer
+from agents.postgres_memory import load_history, save_history
 
 
 class WorkflowRequest(BaseModel):
@@ -125,13 +126,16 @@ async def workflow_chat(
     thread_id = data.thread_id or uuid4()
 
     try:
+        previous_history = await load_history(str(user.id), str(thread_id))
         result = await asyncio.wait_for(
             run_planner_executor_reviewer(
                 task=data.task,
                 thread_id=str(thread_id),
+                history=previous_history,
             ),
             timeout=120,
         )
+        await save_history(str(user.id), str(thread_id), result.get("history", []))
         logger.info("agent_workflow_completed", thread_id=str(thread_id))
         return WorkflowResponse(
             thread_id=thread_id,
