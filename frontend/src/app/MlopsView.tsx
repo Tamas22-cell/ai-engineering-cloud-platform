@@ -1,3 +1,4 @@
+import ExperimentTracking from './ExperimentTracking';
 'use client';
 
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
@@ -267,6 +268,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   }
 
   return <section className="max-w-4xl space-y-5">
+    <ExperimentTracking auth={auth} models={models} role={currentUser?.role ?? null} />
     <h2 className="text-xl font-semibold">MLOps / Model Registry</h2>
     <p className="text-sm text-[#9AA3AE]">Nyilvános, automatikusan frissülő modelllista a FastAPI backendről. Modellmódosításhoz bejelentkezés szükséges.</p>
     <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
