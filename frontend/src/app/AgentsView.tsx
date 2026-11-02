@@ -18,6 +18,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
   const [threadId, setThreadId] = useState<string | null>(null);
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [runsError, setRunsError] = useState('');
+  const [runsRefresh, setRunsRefresh] = useState(0);
 
   useEffect(() => {
     // The backend scopes saved history by authenticated user ID.
@@ -38,7 +39,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     }
     void loadRuns();
     return () => { cancelled = true; };
-  }, [auth, workflow]);
+  }, [auth, runsRefresh]);
 
   function newConversation() {
     window.localStorage.removeItem('ai-platform-agent-workflow-thread');
@@ -133,6 +134,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
       setError(controller.signal.aborted ? 'A backend nem válaszolt időben. A Render felébredése vagy az AI workflow túl hosszú futása okozhatja.' : reason instanceof Error ? reason.message : 'Az API-hívás sikertelen.');
     } finally {
       clearTimeout(timer);
+      if (mode === 'workflow') setRunsRefresh(value => value + 1);
       setBusy(false);
     }
   }
@@ -193,7 +195,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         {runsError && <p className="text-xs text-amber-300">{runsError}</p>}
         {!runsError && runs.length === 0 && <p className="text-xs text-[#9AA3AE]">Még nincs mentett futás.</p>}
         {runs.map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs">
-          <div className="flex justify-between gap-3"><span className="font-medium break-words">{run.task}</span><span className="shrink-0 text-emerald-300">{run.status}</span></div>
+          <div className="flex justify-between gap-3"><span className="font-medium break-words">{run.task}</span><span className={`shrink-0 ${run.status === "success" ? "text-emerald-300" : run.status === "timeout" ? "text-amber-300" : "text-red-300"}`}>{run.status === "success" ? "Sikeres" : run.status === "timeout" ? "Időtúllépés" : "Sikertelen"}</span></div>
           <p className="mt-1 text-[#9AA3AE]">{new Date(run.created_at).toLocaleString('hu-HU')} · {(run.duration_ms / 1000).toFixed(2)} s</p>
         </div>)}
       </section>}
