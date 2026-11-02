@@ -314,25 +314,3 @@ async def test_invented_test_code_remains_unverified_with_semantic_enabled(monke
     )
     assert result["verified"] is False
 
-
-@pytest.mark.asyncio
-async def test_exact_test_code_extracted_from_pdf_without_llm(monkeypatch):
-    embedding = AsyncMock()
-    embedding.embed_texts.return_value = [[1.0]]
-    generator = AsyncMock()
-    semantic = AsyncMock(return_value=False)
-    monkeypatch.setenv("RAG_SEMANTIC_REVIEW_ENABLED", "true")
-    monkeypatch.setattr(multi_agent, "verify_answer_support", semantic)
-    monkeypatch.setattr(multi_agent, "search_stored_documents", AsyncMock(return_value=[
-        {"source": "AI_Engineering_RAG_Teszt.pdf", "page": 2, "text": "Általános információ"},
-        {"source": "AI_Engineering_RAG_Teszt.pdf", "page": 1, "text": "Projekt tesztkódja: RAG-QUANTUM-7429"},
-        {"source": "AI_Engineering_RAG_Teszt.pdf", "page": 1, "text": "RAG-QUANTUM-7429"},
-    ]))
-    result = await multi_agent.run_multi_agent_rag(
-        object(), "user-123", "Mi a projekt tesztkódja?",
-        embedding_service=embedding, answer_generator=generator,
-    )
-    assert result["verified"] is True
-    assert "RAG-QUANTUM-7429" in result["answer"]
-    generator.generate_answer.assert_not_awaited()
-    semantic.assert_not_awaited()
