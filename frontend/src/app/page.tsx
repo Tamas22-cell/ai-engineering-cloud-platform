@@ -141,7 +141,7 @@ export default function HomePage() {
             <Placeholder title="Cloud Infrastructure" phase="Phase 5" />
           )}
           {active === 'observability' && (
-            <ObservabilityView telemetry={ragTelemetry} />
+            <ObservabilityView telemetry={ragTelemetry} auth={auth} />
           )}
           {active === 'security' && (
             <Placeholder title="Security Dashboard" phase="Phase 1 / 5" />
@@ -458,10 +458,52 @@ function SkillsView() {
     </div>
   );
 }
-function ObservabilityView({ telemetry }: { telemetry: { step_timings_ms?: Record<string, number>; usage?: { model?: string; total_tokens?: number; estimated_cost_usd?: string | null }; verified?: boolean } | null }) {
+type AgentRunMonitor = { id: string; task: string; status: string; duration_ms: number; created_at: string; step_timings: Record<string, number> };
+function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?: Record<string, number>; usage?: { model?: string; total_tokens?: number; estimated_cost_usd?: string | null }; verified?: boolean } | null; auth: SharedAuth | null }) {
+  const [agentRuns, setAgentRuns] = useState<AgentRunMonitor[]>([]);
+  const [monitorStatus, setMonitorStatus] = useState('Bejelentkezés szükséges az Agent Monitoring előzményekhez.');
+  useEffect(() => {
+    if (!auth) { setAgentRuns([]); setMonitorStatus('Bejelentkezés szükséges az Agent Monitoring előzményekhez.'); return; }
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const response = await fetch(`${API_URL}/agents/workflow/runs`, { headers: { Authorization: `Bearer ${auth!.access_token}` }, cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json() as AgentRunMonitor[];
+        if (!cancelled) { setAgentRuns(data); setMonitorStatus(data.length ? '' : 'Még nincs mentett Agent workflow futás.'); }
+      } catch (error) {
+        if (!cancelled) setMonitorStatus(error instanceof Error ? `Agent Monitoring nem elérhető: ${error.message}` : 'Agent Monitoring nem elérhető.');
+      }
+    }
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 30000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [auth]);
   const steps = ['planner', 'retriever', 'synthesizer', 'reviewer'];
   return <section className="max-w-5xl space-y-5">
     <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5"><h2 className="text-xl font-semibold">Multi-Agent RAG Observability</h2><p className="mt-2 text-sm text-slate-400">A legutóbbi RAG-kérdés valós LangGraph futási adatai ebben a böngészőmunkamenetben. Nincs szimulált telemetria.</p></div>
+    <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
+      <h3 className="font-semibold">Agent Monitoring · mentett workflow futások</h3>
+      <p className="text-xs text-slate-400">Valós, felhasználóhoz kötött PostgreSQL futási előzmények · automatikus frissítés 30 másodpercenként.</p>
+      {monitorStatus && <p className="text-sm text-amber-200">{monitorStatus}</p>}
+      {agentRuns.length > 0 && <>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Futások</p><strong>{agentRuns.length}</strong></div>
+          <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Sikeres</p><strong>{agentRuns.filter(r => r.status === 'success').length}</strong></div>
+          <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Átlagos idő</p><strong>{(agentRuns.reduce((n, r) => n + r.duration_ms, 0) / agentRuns.length).toFixed(0)} ms</strong></div>
+        </div>
+        <details className="rounded-lg border border-white/10 p-3">
+          <summary className="cursor-pointer text-sm text-cyan-300">Workflow előzmények ({agentRuns.length})</summary>
+          <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+            {agentRuns.map(run => <div key={run.id} className="rounded border border-white/10 p-2 text-xs">
+              <p className="font-medium">{run.status} · {run.duration_ms.toFixed(0)} ms · {new Date(run.created_at).toLocaleString('hu-HU')}</p>
+              <p className="mt-1 break-words text-slate-400">{run.task}</p>
+              <p className="mt-1 text-slate-400">{Object.entries(run.step_timings || {}).map(([name, ms]) => `${name}: ${ms.toFixed(0)} ms`).join(' · ')}</p>
+            </div>)}
+          </div>
+        </details>
+      </>}
+    </div>
     {!telemetry?.step_timings_ms ? <div className="rounded-xl border border-amber-500/20 p-5 text-amber-200">Még nincs mért futás ebben a munkamenetben. Menj a RAG oldalra, jelentkezz be, és tegyél fel egy kérdést a feltöltött PDF-ről.</div> : <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{steps.map(step => <div key={step} className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-sm capitalize text-slate-300">{step}</p><p className="mt-2 text-2xl font-semibold">{telemetry.step_timings_ms?.[step] == null ? 'Nincs adat' : `${telemetry.step_timings_ms[step].toFixed(1)} ms`}</p></div>)}</div>
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Legutóbbi kérdés összesítése</h3><p>Forrásellenőrzés: {telemetry.verified ? 'Sikeres' : 'Nem igazolt'}</p><p>LLM modell: {telemetry.usage?.model ?? 'Nem jelentett'}</p><p>LLM tokenek: {telemetry.usage?.total_tokens ?? 'Nem jelentett'}</p><p>Becsült LLM költség: {telemetry.usage?.estimated_cost_usd == null ? 'Nincs konfigurálva' : `$${telemetry.usage.estimated_cost_usd}`}</p><p className="text-xs text-slate-400">A tokenköltség nem tartalmazza automatikusan az embedding és infrastruktúra költségeit. Az adatok oldalfrissítéskor elvesznek.</p></div>
