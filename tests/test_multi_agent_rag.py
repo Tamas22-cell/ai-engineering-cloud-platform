@@ -245,3 +245,26 @@ async def test_multi_agent_accepts_identifier_in_cited_excerpt(monkeypatch):
     )
     assert result["verified"] is True
     assert result["answer"] == "A projekt tesztkódja RAG-QUANTUM-7429 [1]."
+
+
+@pytest.mark.asyncio
+async def test_verbatim_cited_pdf_answer_skips_semantic_model(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    generator.generate_answer.return_value = {
+        "answer": "A projekt tesztkódja RAG-QUANTUM-7429 [1].",
+        "sources": [],
+    }
+    monkeypatch.setattr(multi_agent, "search_stored_documents", AsyncMock(return_value=[
+        {"source": "test.pdf", "page": 1, "text": "A projekt tesztkódja RAG-QUANTUM-7429."},
+    ]))
+    semantic = AsyncMock(return_value=False)
+    monkeypatch.setattr(multi_agent, "verify_answer_support", semantic)
+    monkeypatch.setenv("RAG_SEMANTIC_REVIEW_ENABLED", "true")
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Mi a projekt tesztkódja?",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["verified"] is True
+    semantic.assert_not_awaited()
