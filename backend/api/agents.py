@@ -1,4 +1,5 @@
 import asyncio
+from time import perf_counter
 import structlog
 from openai import AuthenticationError, PermissionDeniedError, RateLimitError, APIConnectionError, APIStatusError
 
@@ -116,6 +117,7 @@ class WorkflowResponse(BaseModel):
     plan: str
     execution: str
     review: str
+    duration_ms: float
 
 
 @router.post("/workflow", response_model=WorkflowResponse)
@@ -124,6 +126,7 @@ async def workflow_chat(
     user=Depends(get_current_user),
 ):
     thread_id = data.thread_id or uuid4()
+    started = perf_counter()
 
     try:
         previous_history = await load_history(str(user.id), str(thread_id))
@@ -136,13 +139,15 @@ async def workflow_chat(
             timeout=120,
         )
         await save_history(str(user.id), str(thread_id), result.get("history", []))
-        logger.info("agent_workflow_completed", thread_id=str(thread_id))
+        duration_ms = round((perf_counter() - started) * 1000, 2)
+        logger.info("agent_workflow_completed", thread_id=str(thread_id), duration_ms=duration_ms)
         return WorkflowResponse(
             thread_id=thread_id,
             response=result["final_answer"],
             plan=result["plan"],
             execution=result["execution"],
             review=result["review"],
+            duration_ms=duration_ms,
         )
     except TimeoutError:
         logger.warning("agent_workflow_timeout", thread_id=str(thread_id), timeout_seconds=120)
