@@ -221,3 +221,27 @@ async def test_multi_agent_rejects_fabricated_identifier(monkeypatch):
     )
     assert result["verified"] is False
     assert "nem található" in result["answer"]
+
+
+@pytest.mark.asyncio
+async def test_multi_agent_accepts_identifier_in_cited_excerpt(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    generator.generate_answer.return_value = {
+        "answer": "A projekt tesztkódja RAG-QUANTUM-7429 [1].",
+        "sources": [],
+    }
+    monkeypatch.setattr(
+        multi_agent, "search_stored_documents",
+        AsyncMock(return_value=[
+            {"source": "test.pdf", "page": 1, "text": "A projekt tesztkódja RAG-QUANTUM-7429."},
+        ]),
+    )
+    monkeypatch.setenv("RAG_SEMANTIC_REVIEW_ENABLED", "false")
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Mi a projekt tesztkódja?",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["verified"] is True
+    assert result["answer"] == "A projekt tesztkódja RAG-QUANTUM-7429 [1]."
