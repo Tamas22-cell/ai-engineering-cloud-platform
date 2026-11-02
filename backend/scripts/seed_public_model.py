@@ -25,9 +25,6 @@ async def seed_public_model() -> None:
         existing = (await db.execute(select(RegisteredModel).where(
             RegisteredModel.name == MODEL_NAME, RegisteredModel.version == MODEL_VERSION
         ))).scalar_one_or_none()
-        if existing is not None:
-            print("MLOps seed already present")
-            return
 
         # Fixed synthetic dataset: these are actual computed metrics, not production telemetry.
         rng = np.random.default_rng(42)
@@ -42,15 +39,36 @@ async def seed_public_model() -> None:
         mae = float(np.mean(np.abs(test_y - predictions)))
         rmse = float(np.sqrt(np.mean((test_y - predictions) ** 2)))
 
-        model = RegisteredModel(name=MODEL_NAME, version=MODEL_VERSION, framework="NumPy", created_by=owner.id)
-        db.add(model)
-        await db.flush()
-        db.add_all([
-            ModelRun(model_id=model.id, created_by=owner.id, metric_name="mae", metric_value=mae, duration_ms=duration_ms),
-            ModelRun(model_id=model.id, created_by=owner.id, metric_name="rmse", metric_value=rmse, duration_ms=duration_ms),
-        ])
-        await db.commit()
-        print(f"MLOps baseline registered: MAE={mae:.4f}, RMSE={rmse:.4f} (synthetic test dataset)")
+        model = existing
+        if model is None:
+            model = RegisteredModel(name=MODEL_NAME, version=MODEL_VERSION, framework="NumPy", created_by=owner.id)
+            db.add(model)
+            await db.flush()
+
+        # Twelve independently evaluated, reproducible synthetic batches.
+        # Only add missing batches on subsequent deploys.
+        existing_mae = (await db.execute(
+            select(ModelRun).where(ModelRun.model_id == model.id, ModelRun.metric_name == "mae")
+        )).scalars().all()
+        existing_rmse = (await db.execute(
+            select(ModelRun).where(ModelRun.model_id == model.id, ModelRun.metric_name == "rmse")
+        )).scalars().all()
+        new_runs = []
+        for batch in range(max(len(existing_mae), len(existing_rmse)), 12):
+            batch_rng = np.random.default_rng(1000 + batch)
+            batch_x = np.linspace(-2, 2, 30)
+            batch_y = 2.5 * batch_x - 0.7 + batch_rng.normal(0, 0.2, size=batch_x.size)
+            residual = batch_y - (slope * batch_x + intercept)
+            new_runs.extend([
+                ModelRun(model_id=model.id, created_by=owner.id, metric_name="mae",
+                         metric_value=float(np.mean(np.abs(residual))), duration_ms=duration_ms),
+                ModelRun(model_id=model.id, created_by=owner.id, metric_name="rmse",
+                         metric_value=float(np.sqrt(np.mean(residual ** 2))), duration_ms=duration_ms),
+            ])
+        if new_runs:
+            db.add_all(new_runs)
+            await db.commit()
+        print(f"MLOps baseline: {len(new_runs)//2} new synthetic batches evaluated")
 
 
 if __name__ == "__main__":
