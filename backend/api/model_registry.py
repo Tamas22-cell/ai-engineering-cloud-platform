@@ -114,7 +114,6 @@ async def record_run(
 async def list_runs(
     model_id: str,
     limit: int = Query(50, ge=1, le=100),
-    user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if await db.get(RegisteredModel, model_id) is None:
@@ -133,7 +132,6 @@ async def metric_summary(
     threshold: float | None = Query(default=None),
     direction: str = Query(default="below", pattern="^(below|above)$"),
     limit: int = Query(default=50, ge=1, le=500),
-    user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if await db.get(RegisteredModel, model_id) is None:
