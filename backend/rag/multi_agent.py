@@ -80,7 +80,7 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
         ]
         valid = {str(source["id"]) for source in trusted_sources}
         cited = set(re.findall(r"\[(\d+)\]", state["answer"]))
-        # Citation IDs prove provenance only, not factual entailment.\n        # Do not present a citation-only check as verified factual accuracy.\n        verified = False
+        verified = bool(documents and cited and cited.issubset(valid))
         if cited - valid:
             return {
                 "answer": "A válasz nem ellenőrizhető a rendelkezésre álló forrásokból.",
