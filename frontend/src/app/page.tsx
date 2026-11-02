@@ -101,7 +101,10 @@ export default function HomePage() {
         </nav>
 
         <div className="p-4 border-t border-white/5">
-          <LiveBackendStatus />
+          <div className="flex items-center gap-2 text-xs text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Development preview · unverified
+          </div>
         </div>
       </aside>
 
@@ -119,7 +122,7 @@ export default function HomePage() {
         </header>
 
         <main className="flex-1 p-4 md:p-6 overflow-auto">
-          {active === 'overview' && <OverviewView auth={auth} />}
+          {active === 'overview' && <OverviewView />}
           {active === 'agents' && authRestored && <AgentsView auth={auth} setAuth={setAuth} />}
           {active === 'rag' && authRestored && (
             <RagView onTelemetry={setRagTelemetry} auth={auth} setAuth={setAuth} />
@@ -149,58 +152,9 @@ export default function HomePage() {
   );
 }
 
-function LiveBackendStatus() {
-  const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
-
-  useEffect(() => {
-    let active = true;
-    async function check() {
-      try {
-        const response = await fetch('/backend/health/live', {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(20000),
-        });
-        if (active) setStatus(response.ok ? 'online' : 'offline');
-      } catch {
-        if (active) setStatus('offline');
-      }
-    }
-    void check();
-    const interval = window.setInterval(() => void check(), 30000);
-    return () => { active = false; window.clearInterval(interval); };
-  }, []);
-
-  return <div className={`flex items-center gap-2 text-xs ${status === 'online' ? 'text-emerald-400' : status === 'offline' ? 'text-amber-300' : 'text-[#9AA3AE]'}`}>
-    <span className={`h-1.5 w-1.5 rounded-full ${status === 'online' ? 'bg-emerald-400' : status === 'offline' ? 'bg-amber-300' : 'bg-gray-400'}`} />
-    {status === 'online' ? 'Backend API · online' : status === 'offline' ? 'Backend API · unavailable' : 'Backend API · checking'}
-  </div>;
-}
-
-function OverviewView({ auth }: { auth: SharedAuth | null }) {
+function OverviewView() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
   const [databaseStatus, setDatabaseStatus] = useState('Unknown');
-  const [agentStatus, setAgentStatus] = useState<'checking' | 'verified' | 'unverified'>('checking');
-  const [agentRuns, setAgentRuns] = useState(0);
-
-  useEffect(() => {
-    if (!auth) { setAgentStatus('unverified'); setAgentRuns(0); return; }
-    let active = true;
-    async function checkAgents() {
-      try {
-        const response = await fetch(`${API_URL}/agents/workflow/runs`, {
-          headers: { Authorization: `Bearer ${auth!.access_token}` }, cache: 'no-store',
-          signal: AbortSignal.timeout(20000),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const runs: unknown = await response.json();
-        if (!Array.isArray(runs)) throw new Error('Invalid agent response');
-        if (active) { setAgentRuns(runs.length); setAgentStatus('verified'); }
-      } catch { if (active) { setAgentStatus('unverified'); setAgentRuns(0); } }
-    }
-    void checkAgents();
-    const interval = window.setInterval(() => void checkAgents(), 30000);
-    return () => { active = false; window.clearInterval(interval); };
-  }, [auth]);
 
   useEffect(() => {
     let active = true;
@@ -236,7 +190,7 @@ function OverviewView({ auth }: { auth: SharedAuth | null }) {
     {
       title: 'AI Agent Orchestration',
       detail: 'Tool calling, workflow orchestration, guardrails',
-      state: agentStatus === 'verified' ? `Live API verified · ${agentRuns} saved runs` : 'Implemented in repository · live verification unavailable',
+      state: 'Implemented in repository · runtime unverified',
     },
     {
       title: 'RAG & Knowledge Retrieval',
@@ -303,7 +257,7 @@ function OverviewView({ auth }: { auth: SharedAuth | null }) {
         <p className="text-[#B8C6D6] mt-3 leading-relaxed">
           Public frontend deployed on Vercel. Backend liveness and database readiness
           are checked separately. Agent, RAG and MLOps code exists in GitHub;
-          production integrations are reported only when verified by live checks.
+          production API integrations and monitoring remain unverified.
         </p>
 
         <a
@@ -326,9 +280,9 @@ function OverviewView({ auth }: { auth: SharedAuth | null }) {
 
         <MetricCard
           label="Live AI agents"
-          value={agentStatus === 'verified' ? 'API verified' : agentStatus === 'checking' ? 'Checking...' : 'Unverified'}
-          detail={agentStatus === 'verified' ? `Authenticated workflow history reachable · ${agentRuns} saved runs` : auth ? 'Live agent history check unavailable' : 'Sign in on Agents to verify live history'}
-          accent={agentStatus === 'verified' ? 'emerald' : 'violet'}
+          value="Code available"
+          detail={apiStatus === 'online' ? 'Backend reachable · agent requests not verified' : 'Agent API implemented · backend offline'}
+          accent="violet"
         />
 
         <MetricCard
