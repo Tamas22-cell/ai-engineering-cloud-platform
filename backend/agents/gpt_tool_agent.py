@@ -1,4 +1,6 @@
 import json
+import os
+import xml.etree.ElementTree as ET
 import structlog
 
 import httpx
@@ -15,34 +17,54 @@ from agents.tools.calculator import add_numbers
 async def inspect_project_github() -> str:
     """Read the latest public GitHub repository metadata and commits for this AI Engineering project. Read-only; no credentials or arbitrary URLs."""
     base = "https://api.github.com/repos/Tamas22-cell/ai-engineering-cloud-platform"
+    feed_url = "https://github.com/Tamas22-cell/ai-engineering-cloud-platform/commits/main.atom"
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "ai-engineering-cloud-platform-agent"}
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=False, headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "ai-engineering-cloud-platform-agent",
-        }) as client:
-            repository_response = await client.get(base)
-            repository_response.raise_for_status()
-            commits_response = await client.get(base + "/commits", params={"per_page": 5})
-            commits_response.raise_for_status()
-        repository = repository_response.json()
-        commits = commits_response.json()
-        return json.dumps({
-            "repository": repository.get("full_name"),
-            "default_branch": repository.get("default_branch"),
-            "open_issues_count": repository.get("open_issues_count"),
-            "updated_at": repository.get("updated_at"),
-            "latest_commits": [
-                {"sha": c.get("sha", "")[:12],
-                 "message": c.get("commit", {}).get("message", "").split("\n")[0][:200],
-                 "date": c.get("commit", {}).get("committer", {}).get("date")}
-                for c in commits[:5]
-            ],
-            "source": base,
-        }, ensure_ascii=False)
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True, headers=headers) as client:
+            response = await client.get(base + "/commits", params={"per_page": 5})
+            if response.status_code in (403, 429):
+                # Public Atom feed is a separate, read-only fallback for API rate limits.
+                feed_response = await client.get(feed_url, headers={
+                    "Accept": "application/atom+xml",
+                    "User-Agent": "ai-engineering-cloud-platform-agent",
+                })
+                feed_response.raise_for_status()
+                root = ET.fromstring(feed_response.text)
+                ns = {"atom": "http://www.w3.org/2005/Atom"}
+                commits = []
+                for entry in root.findall("atom:entry", ns)[:5]:
+                    url = entry.findtext("atom:id", default="", namespaces=ns)
+                    sha = url.rstrip("/").split("/")[-1]
+                    if len(sha) != 40 or any(ch not in "0123456789abcdef" for ch in sha.lower()):
+                        raise ValueError("Unexpected GitHub feed commit identifier")
+                    commits.append({
+                        "sha": sha[:12],
+                        "message": entry.findtext("atom:title", default="", namespaces=ns).strip()[:200],
+                        "date": entry.findtext("atom:updated", default="", namespaces=ns),
+                    })
+                if not commits:
+                    raise ValueError("No commits found in GitHub Atom feed")
+                structlog.get_logger().info("github_tool_atom_fallback", count=len(commits))
+                return json.dumps({"repository": "Tamas22-cell/ai-engineering-cloud-platform",
+                                   "latest_commits": commits, "source": feed_url}, ensure_ascii=False)
+            response.raise_for_status()
+            data = response.json()
+            if not isinstance(data, list):
+                raise ValueError("Unexpected GitHub API response")
+            commits = [{
+                "sha": c["sha"][:12],
+                "message": c["commit"]["message"].split("\\n")[0][:200],
+                "date": c["commit"]["committer"]["date"],
+            } for c in data[:5]]
+            return json.dumps({"repository": "Tamas22-cell/ai-engineering-cloud-platform",
+                               "latest_commits": commits, "source": base + "/commits"}, ensure_ascii=False)
     except httpx.HTTPStatusError as exc:
         structlog.get_logger().warning("github_tool_http_error", status_code=exc.response.status_code)
-        return json.dumps({"error": "GitHub API request failed", "status_code": exc.response.status_code})
-    except (httpx.HTTPError, ValueError, TypeError) as exc:
+        return json.dumps({"error": "GitHub request failed", "status_code": exc.response.status_code})
+    except (httpx.HTTPError, ET.ParseError, ValueError, KeyError, TypeError) as exc:
         structlog.get_logger().warning("github_tool_error", error_type=type(exc).__name__)
         return json.dumps({"error": "GitHub data unavailable", "error_type": type(exc).__name__})
 
