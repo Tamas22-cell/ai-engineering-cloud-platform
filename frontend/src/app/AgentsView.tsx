@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type Dispatch, type SetStateAction
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 type ChatResponse = { response: string; thread_id?: string; plan?: string; execution?: string; review?: string; duration_ms?: number; step_timings_ms?: Record<string, number> };
+type WorkflowRun = { id: string; thread_id: string; task: string; status: string; duration_ms: number; created_at: string; step_timings: Record<string, number> };
 type AuthResponse = { access_token: string; refresh_token: string };
 type AgentMode = 'demo' | 'llm' | 'tools' | 'workflow';
 
@@ -15,12 +16,29 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
   const [reply, setReply] = useState('');
   const [workflow, setWorkflow] = useState<ChatResponse | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [runs, setRuns] = useState<WorkflowRun[]>([]);
+  const [runsError, setRunsError] = useState('');
 
   useEffect(() => {
     // The backend scopes saved history by authenticated user ID.
     const saved = window.localStorage.getItem('ai-platform-agent-workflow-thread');
     if (saved && /^[0-9a-f-]{36}$/i.test(saved)) setThreadId(saved);
   }, []);
+
+  useEffect(() => {
+    if (!auth) { setRuns([]); return; }
+    let cancelled = false;
+    async function loadRuns() {
+      try {
+        const response = await fetch(`${API_URL}/agents/workflow/runs`, { headers: { Authorization: `Bearer ${auth!.access_token}` } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = (await response.json()) as WorkflowRun[];
+        if (!cancelled) { setRuns(data); setRunsError(''); }
+      } catch { if (!cancelled) setRunsError('A futási előzmények nem érhetők el.'); }
+    }
+    void loadRuns();
+    return () => { cancelled = true; };
+  }, [auth, workflow]);
 
   function newConversation() {
     window.localStorage.removeItem('ai-platform-agent-workflow-thread');
@@ -170,6 +188,15 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
           </article>
         ))}
       </div>}
+      {mode === 'workflow' && auth && <section className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-4">
+        <h3 className="font-semibold">Korábbi agentfuttatások</h3>
+        {runsError && <p className="text-xs text-amber-300">{runsError}</p>}
+        {!runsError && runs.length === 0 && <p className="text-xs text-[#9AA3AE]">Még nincs mentett futás.</p>}
+        {runs.map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs">
+          <div className="flex justify-between gap-3"><span className="font-medium break-words">{run.task}</span><span className="shrink-0 text-emerald-300">{run.status}</span></div>
+          <p className="mt-1 text-[#9AA3AE]">{new Date(run.created_at).toLocaleString('hu-HU')} · {(run.duration_ms / 1000).toFixed(2)} s</p>
+        </div>)}
+      </section>}
       {reply && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><h3 className="mb-2 font-semibold">Agent válasza</h3><p className="whitespace-pre-wrap break-words text-sm">{reply}</p></div>}
       {error && <div role="alert" className="rounded-xl border border-red-500/30 p-4 text-sm text-red-300">{error}</div>}
       <p className="text-xs text-[#9AA3AE]">Az LLM és tool agent működéséhez a backend OpenAI API-kulcsa is szükséges.</p>
