@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 type ChatResponse = { response: string; thread_id?: string; plan?: string; execution?: string; review?: string };
@@ -14,6 +14,21 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
   const [message, setMessage] = useState('');
   const [reply, setReply] = useState('');
   const [workflow, setWorkflow] = useState<ChatResponse | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // The backend scopes saved history by authenticated user ID.
+    const saved = window.localStorage.getItem('ai-platform-agent-workflow-thread');
+    if (saved && /^[0-9a-f-]{36}$/i.test(saved)) setThreadId(saved);
+  }, []);
+
+  function newConversation() {
+    window.localStorage.removeItem('ai-platform-agent-workflow-thread');
+    setThreadId(null);
+    setWorkflow(null);
+    setReply('');
+    setMessage('');
+  }
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -49,7 +64,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         'Content-Type': 'application/json',
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
-      body: JSON.stringify(path === '/agents/workflow' ? { task: message.trim() } : { message: message.trim() }),
+      body: JSON.stringify(path === '/agents/workflow' ? { task: message.trim(), ...(threadId ? { thread_id: threadId } : {}) } : { message: message.trim() }),
       signal,
     });
   }
@@ -87,6 +102,10 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         throw new Error(typeof body?.detail === 'string' ? body.detail : `API HTTP ${response.status}`);
       }
       const result = (await response.json()) as ChatResponse;
+      if (mode === 'workflow' && result.thread_id) {
+        setThreadId(result.thread_id);
+        window.localStorage.setItem('ai-platform-agent-workflow-thread', result.thread_id);
+      }
       if (mode === 'workflow' && result.plan && result.execution && result.review) {
         setWorkflow(result);
       } else {
@@ -136,6 +155,10 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         </label>
         <button type="submit" disabled={busy || !message.trim() || (mode !== 'demo' && !auth)} className="rounded-lg bg-cyan-500 px-5 py-2 font-medium text-black disabled:opacity-50">{busy ? 'Feldolgozás...' : 'Küldés'}</button>
       </form>
+      {mode === 'workflow' && <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#9AA3AE]">
+        <span>{threadId ? `Mentett beszélgetés: ${threadId}` : 'Új beszélgetés – az első válasz után mentjük az azonosítót.'}</span>
+        <button type="button" disabled={busy} onClick={newConversation} className="rounded border border-white/20 px-3 py-2 text-sm text-white disabled:opacity-50">Új beszélgetés</button>
+      </div>}
       {workflow && <div className="space-y-3" aria-label="Workflow eredmények">
         <p className="text-xs text-[#9AA3AE]">Workflow ID: {workflow.thread_id}</p>
         {([['01 · Planner – terv', workflow.plan], ['02 · Executor – végrehajtás', workflow.execution], ['03 · Reviewer – ellenőrzés és végső válasz', workflow.review]] as const).map(([heading, content]) => (
