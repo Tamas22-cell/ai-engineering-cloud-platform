@@ -17,14 +17,14 @@ def create_llm_client() -> AsyncOpenAI:
     )
 
 
-async def generate_response(message: str) -> str:
+async def generate_response(message: str, max_output_tokens: int = 300) -> str:
     client = create_llm_client()
 
     response = await client.responses.create(
         model="gpt-4.1-mini",
         instructions="You are a helpful AI engineering assistant.",
         input=message,
-        max_output_tokens=300,
+        max_output_tokens=max_output_tokens,
     )
 
     usage = response.usage
