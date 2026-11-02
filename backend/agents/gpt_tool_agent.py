@@ -1,4 +1,5 @@
 import json
+import structlog
 
 import httpx
 from langchain_core.tools import tool
@@ -32,13 +33,17 @@ async def inspect_project_github() -> str:
             "updated_at": repository.get("updated_at"),
             "latest_commits": [
                 {"sha": c.get("sha", "")[:12],
-                 "message": c.get("commit", {}).get("message", "").split("\\n")[0][:200],
+                 "message": c.get("commit", {}).get("message", "").split("\n")[0][:200],
                  "date": c.get("commit", {}).get("committer", {}).get("date")}
                 for c in commits[:5]
             ],
             "source": base,
         }, ensure_ascii=False)
+    except httpx.HTTPStatusError as exc:
+        structlog.get_logger().warning("github_tool_http_error", status_code=exc.response.status_code)
+        return json.dumps({"error": "GitHub API request failed", "status_code": exc.response.status_code})
     except (httpx.HTTPError, ValueError, TypeError) as exc:
+        structlog.get_logger().warning("github_tool_error", error_type=type(exc).__name__)
         return json.dumps({"error": "GitHub data unavailable", "error_type": type(exc).__name__})
 
 
@@ -152,6 +157,25 @@ gpt_tool_agent = graph.compile()
 async def run_gpt_tool_agent(message: str):
     """Run the GPT tool agent with a bounded number of graph steps."""
     from langchain_core.messages import HumanMessage
+
+    # Return actual tool results for explicit GitHub inspection requests.
+    request = message.casefold()
+    if any(word in request for word in ("github", "repository", "repo")) and any(
+        word in request for word in ("commit", "sha", "repository", "repo", "github")
+    ):
+        raw = await inspect_project_github.ainvoke({})
+        data = json.loads(raw)
+        if "error" in data:
+            answer = "GitHub API lekérdezés sikertelen: " + json.dumps(data, ensure_ascii=False)
+        else:
+            lines = [f"Repository: {data['repository']}", "Utolsó 5 commit:"]
+            for commit in data["latest_commits"]:
+                lines.append(f"- {commit['sha']} | {commit['date']} | {commit['message']}")
+            lines.append(f"Forrás: {data['source']}")
+            answer = "\\n".join(lines)
+        return {"messages": [HumanMessage(content=message),
+                             ToolMessage(content=raw, tool_call_id="github-inspection"),
+                             AIMessage(content=answer)]}
 
     return await gpt_tool_agent.ainvoke(
         {"messages": [HumanMessage(content=message)]},
