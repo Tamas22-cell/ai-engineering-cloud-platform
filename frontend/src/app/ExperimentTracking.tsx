@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 
 type Experiment = { id: string; name: string; model_id: string };
 type Run = { id: string; status: string; hyperparameters: Record<string, unknown>; dataset_version: string | null; git_commit_sha: string | null };
@@ -9,7 +9,7 @@ type Auth = { access_token: string; refresh_token: string };
 type Model = { id: string; name: string; version: string };
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
-export default function ExperimentTracking({ auth, models, role }: { auth: Auth | null; models: Model[]; role: string | null }) {
+export default function ExperimentTracking({ auth, setAuth, models, role }: { auth: Auth | null; setAuth: Dispatch<SetStateAction<Auth | null>>; models: Model[]; role: string | null }) {
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [selected, setSelected] = useState('');
   const [runs, setRuns] = useState<Run[]>([]);
@@ -51,10 +51,25 @@ export default function ExperimentTracking({ auth, models, role }: { auth: Auth 
   async function createExperiment() {
     if (!canWrite || !modelId || !name.trim() || !auth) return;
     try {
-      const response = await fetch(`${API}/mlops/experiments`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.access_token}` },
-        body: JSON.stringify({ name: name.trim(), model_id: modelId }),
+      const payload = JSON.stringify({ name: name.trim(), model_id: modelId });
+      const submit = (token: string) => fetch(`${API}/mlops/experiments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: payload,
       });
+      let response = await submit(auth.access_token);
+      if (response.status === 401) {
+        const refresh = await fetch(`${API}/auth/refresh`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: auth.refresh_token }),
+        });
+        if (!refresh.ok) {
+          setAuth(null);
+          throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+        }
+        const tokens = await refresh.json() as Auth;
+        setAuth(tokens);
+        response = await submit(tokens.access_token);
+      }
       if (!response.ok) throw new Error(`Létrehozás sikertelen: HTTP ${response.status}`);
       setName('');
       await loadExperiments();
