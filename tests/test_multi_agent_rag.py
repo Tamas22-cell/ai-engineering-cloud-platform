@@ -268,3 +268,48 @@ async def test_verbatim_cited_pdf_answer_skips_semantic_model(monkeypatch):
     )
     assert result["verified"] is True
     semantic.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_exact_cited_test_code_verified_without_second_llm(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    generator.generate_answer.return_value = {
+        "answer": "A projekt tesztkódja RAG-QUANTUM-7429 [2][3].",
+        "sources": [],
+    }
+    monkeypatch.setenv("RAG_SEMANTIC_REVIEW_ENABLED", "true")
+    monkeypatch.setattr(multi_agent, "search_stored_documents", AsyncMock(return_value=[
+        {"source": "test.pdf", "page": 2, "text": "Egyéb szöveg."},
+        {"source": "test.pdf", "page": 1, "text": "Projekt tesztkódja: RAG-QUANTUM-7429."},
+        {"source": "test.pdf", "page": 1, "text": "RAG-QUANTUM-7429"},
+    ]))
+    semantic = AsyncMock(return_value=False)
+    monkeypatch.setattr(multi_agent, "verify_answer_support", semantic)
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Mi a projekt tesztkódja?",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["verified"] is True
+    semantic.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_invented_test_code_remains_unverified_with_semantic_enabled(monkeypatch):
+    embedding = AsyncMock()
+    embedding.embed_texts.return_value = [[1.0]]
+    generator = AsyncMock()
+    generator.generate_answer.return_value = {
+        "answer": "A projekt tesztkódja RAG-FAKE-9999 [1].",
+        "sources": [],
+    }
+    monkeypatch.setenv("RAG_SEMANTIC_REVIEW_ENABLED", "true")
+    monkeypatch.setattr(multi_agent, "search_stored_documents", AsyncMock(return_value=[
+        {"source": "test.pdf", "page": 1, "text": "Projekt tesztkódja: RAG-QUANTUM-7429."},
+    ]))
+    result = await multi_agent.run_multi_agent_rag(
+        object(), "user-123", "Mi a projekt tesztkódja?",
+        embedding_service=embedding, answer_generator=generator,
+    )
+    assert result["verified"] is False
