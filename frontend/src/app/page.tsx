@@ -119,7 +119,7 @@ export default function HomePage() {
         </header>
 
         <main className="flex-1 p-4 md:p-6 overflow-auto">
-          {active === 'overview' && <OverviewView />}
+          {active === 'overview' && <OverviewView auth={auth} />}
           {active === 'agents' && authRestored && <AgentsView auth={auth} setAuth={setAuth} />}
           {active === 'rag' && authRestored && (
             <RagView onTelemetry={setRagTelemetry} auth={auth} setAuth={setAuth} />
@@ -176,9 +176,31 @@ function LiveBackendStatus() {
   </div>;
 }
 
-function OverviewView() {
+function OverviewView({ auth }: { auth: SharedAuth | null }) {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
   const [databaseStatus, setDatabaseStatus] = useState('Unknown');
+  const [agentStatus, setAgentStatus] = useState<'checking' | 'verified' | 'unverified'>('checking');
+  const [agentRuns, setAgentRuns] = useState(0);
+
+  useEffect(() => {
+    if (!auth) { setAgentStatus('unverified'); setAgentRuns(0); return; }
+    let active = true;
+    async function checkAgents() {
+      try {
+        const response = await fetch(`${API_URL}/agents/workflow/runs`, {
+          headers: { Authorization: `Bearer ${auth!.access_token}` }, cache: 'no-store',
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const runs: unknown = await response.json();
+        if (!Array.isArray(runs)) throw new Error('Invalid agent response');
+        if (active) { setAgentRuns(runs.length); setAgentStatus('verified'); }
+      } catch { if (active) { setAgentStatus('unverified'); setAgentRuns(0); } }
+    }
+    void checkAgents();
+    const interval = window.setInterval(() => void checkAgents(), 30000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [auth]);
 
   useEffect(() => {
     let active = true;
@@ -214,7 +236,7 @@ function OverviewView() {
     {
       title: 'AI Agent Orchestration',
       detail: 'Tool calling, workflow orchestration, guardrails',
-      state: 'Implemented in repository · runtime unverified',
+      state: agentStatus === 'verified' ? `Live API verified · ${agentRuns} saved runs` : 'Implemented in repository · live verification unavailable',
     },
     {
       title: 'RAG & Knowledge Retrieval',
@@ -281,7 +303,7 @@ function OverviewView() {
         <p className="text-[#B8C6D6] mt-3 leading-relaxed">
           Public frontend deployed on Vercel. Backend liveness and database readiness
           are checked separately. Agent, RAG and MLOps code exists in GitHub;
-          production API integrations and monitoring remain unverified.
+          production integrations are reported only when verified by live checks.
         </p>
 
         <a
@@ -304,9 +326,9 @@ function OverviewView() {
 
         <MetricCard
           label="Live AI agents"
-          value="Code available"
-          detail={apiStatus === 'online' ? 'Backend reachable · agent requests not verified' : 'Agent API implemented · backend offline'}
-          accent="violet"
+          value={agentStatus === 'verified' ? 'API verified' : agentStatus === 'checking' ? 'Checking...' : 'Unverified'}
+          detail={agentStatus === 'verified' ? `Authenticated workflow history reachable · ${agentRuns} saved runs` : auth ? 'Live agent history check unavailable' : 'Sign in on Agents to verify live history'}
+          accent={agentStatus === 'verified' ? 'emerald' : 'violet'}
         />
 
         <MetricCard
