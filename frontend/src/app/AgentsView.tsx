@@ -197,6 +197,18 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         {runs.map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs">
           <div className="flex justify-between gap-3"><span className="font-medium break-words">{run.task}</span><span className={`shrink-0 ${run.status === "success" ? "text-emerald-300" : run.status === "timeout" ? "text-amber-300" : "text-red-300"}`}>{run.status === "success" ? "Sikeres" : run.status === "timeout" ? "Időtúllépés" : "Sikertelen"}</span></div>
           <p className="mt-1 text-[#9AA3AE]">{new Date(run.created_at).toLocaleString('hu-HU')} · {(run.duration_ms / 1000).toFixed(2)} s</p>
+          <details className="mt-2 rounded border border-white/10 p-2">
+            <summary className="cursor-pointer text-cyan-300">Futás részletei</summary>
+            <div className="mt-2 space-y-2 text-[#9AA3AE]">
+              <p className="break-all">Futásazonosító: {run.id}</p>
+              <p className="break-all">Beszélgetésazonosító: {run.thread_id}</p>
+              <p>Állapot: {run.status === 'success' ? 'Sikeres' : run.status === 'timeout' ? 'Időtúllépés' : 'Sikertelen'}</p>
+              <p>Teljes idő: {run.duration_ms.toFixed(2)} ms</p>
+              {(['planner', 'executor', 'reviewer'] as const).map(step => (
+                <p key={step}>{step === 'planner' ? 'Planner' : step === 'executor' ? 'Executor' : 'Reviewer'}: {typeof run.step_timings?.[step] === 'number' ? `${run.step_timings[step].toFixed(2)} ms` : 'Nincs mérési adat'}</p>
+              ))}
+            </div>
+          </details>
         </div>)}
       </section>}
       {reply && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><h3 className="mb-2 font-semibold">Agent válasza</h3><p className="whitespace-pre-wrap break-words text-sm">{reply}</p></div>}
