@@ -276,7 +276,7 @@ async def test_exact_cited_test_code_verified_without_second_llm(monkeypatch):
     embedding.embed_texts.return_value = [[1.0]]
     generator = AsyncMock()
     generator.generate_answer.return_value = {
-        "answer": "A projekt tesztkódja RAG-QUANTUM-7429 [2][3].",
+        "answer": "A projekt tesztkódja: RAG-QUANTUM-7429 [2], [3].",
         "sources": [],
     }
     monkeypatch.setenv("RAG_SEMANTIC_REVIEW_ENABLED", "true")
