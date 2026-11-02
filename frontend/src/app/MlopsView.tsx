@@ -129,6 +129,25 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     }
   }
 
+  async function logout() {
+    // Clear the shared session even when the backend is temporarily unavailable.
+    const tokens = auth;
+    setAuth(null);
+    setCurrentUser(null);
+    setProfile(null);
+    setError('');
+    if (!tokens) return;
+    try {
+      await fetchWithTimeout(`${API}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokens.access_token}` },
+        body: JSON.stringify({ refresh_token: tokens.refresh_token }),
+      });
+    } catch {
+      // Local logout must never depend on the remote logout endpoint.
+    }
+  }
+
   async function checkRole() {
     setCheckingUser(true);
     setError('');
@@ -278,6 +297,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
         <button onClick={checkRole} disabled={!auth || checkingUser} className="rounded-lg border border-cyan-400/50 px-4 py-2 text-sm text-cyan-200 disabled:opacity-50">{checkingUser ? 'Ellenőrzés...' : 'Saját jogosultság ellenőrzése'}</button>
         {currentUser && <p className="text-sm text-slate-200">Fiók: {currentUser.email} · Szerepkör: <strong>{currentUser.role}</strong> · {currentUser.is_active ? 'Aktív' : 'Inaktív'}</p>}
       </div>
+      {auth && <button type="button" onClick={() => void logout()} className="mr-2 rounded-lg border border-amber-400/50 px-4 py-2 text-sm text-amber-200">Kijelentkezés</button>}
       <button onClick={loadProfile} disabled={!auth || profileLoading} className="mr-2 rounded-lg border border-cyan-500/50 px-4 py-2 text-cyan-200 disabled:opacity-50">{profileLoading ? 'Ellenőrzés...' : 'Fiókom és jogosultságom'}</button>
       {profile && <p className="text-sm text-slate-200">Bejelentkezett fiók: <strong>{profile.email}</strong> · Szerepkör: <strong>{profile.role}</strong></p>}
       <button onClick={loadModels} disabled={loading} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Lekérdezés...' : 'Modellek lekérdezése'}</button>
