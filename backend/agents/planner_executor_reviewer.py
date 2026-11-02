@@ -143,9 +143,21 @@ async def timed_step(name, operation, state):
 
 graph = StateGraph(WorkflowState)
 
-graph.add_node("planner", lambda state: timed_step("planner", planner, state))
-graph.add_node("executor", lambda state: timed_step("executor", executor, state))
-graph.add_node("reviewer", lambda state: timed_step("reviewer", reviewer, state))
+async def timed_planner(state: WorkflowState):
+    return await timed_step("planner", planner, state)
+
+
+graph.add_node("planner", timed_planner)
+async def timed_executor(state: WorkflowState):
+    return await timed_step("executor", executor, state)
+
+
+graph.add_node("executor", timed_executor)
+async def timed_reviewer(state: WorkflowState):
+    return await timed_step("reviewer", reviewer, state)
+
+
+graph.add_node("reviewer", timed_reviewer)
 
 graph.add_edge(START, "planner")
 graph.add_edge("planner", "executor")
