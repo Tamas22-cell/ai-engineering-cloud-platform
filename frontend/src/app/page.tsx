@@ -123,7 +123,7 @@ export default function HomePage() {
         </header>
 
         <main className="flex-1 p-4 md:p-6 overflow-auto">
-          {active === 'overview' && <OverviewView />}
+          {active === 'overview' && <OverviewView onNavigate={setActive} />}
           {active === 'agents' && authRestored && <AgentsView auth={auth} setAuth={setAuth} />}
           {active === 'rag' && authRestored && (
             <RagView onTelemetry={setRagTelemetry} auth={auth} setAuth={setAuth} />
@@ -153,7 +153,7 @@ export default function HomePage() {
   );
 }
 
-function OverviewView() {
+function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
   const [databaseStatus, setDatabaseStatus] = useState('Unknown');
 
@@ -204,9 +204,9 @@ function OverviewView() {
       state: 'Implemented in repository · runtime unverified',
     },
     {
-      title: 'Data Pipelines',
-      detail: 'ETL, quality checks, batch ingestion',
-      state: 'Planned',
+      title: 'Data Engineering · CSV Quality Profiler',
+      detail: 'Live CSV upload, schema inspection, missing values, unique values and duplicate-row checks. Browser-only processing.',
+      state: 'Implemented · Open Data Eng to run a local CSV analysis',
     },
     {
       title: 'Cloud & CI/CD',
@@ -299,6 +299,13 @@ function OverviewView() {
           detail="JWT/RBAC in code · production access unverified"
           accent="amber"
         />
+      </div>
+
+      <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-5">
+        <div className="text-xs uppercase tracking-widest text-cyan-300">New working module</div>
+        <h3 className="mt-2 text-xl font-semibold">Data Engineering · CSV Quality Profiler</h3>
+        <p className="mt-2 text-sm text-[#B8C6D6]">Analyze a real CSV in your browser: missing values, duplicate rows, column uniqueness and sample values. No backend upload required.</p>
+        <button type="button" onClick={() => onNavigate('data')} className="mt-4 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400">Open Data Engineering</button>
       </div>
 
       <h3 className="text-lg font-semibold">Engineering modules</h3>
