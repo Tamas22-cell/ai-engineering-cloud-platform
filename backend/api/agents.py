@@ -118,6 +118,7 @@ class WorkflowResponse(BaseModel):
     execution: str
     review: str
     duration_ms: float
+    step_timings_ms: dict[str, float] = Field(default_factory=dict)
 
 
 @router.post("/workflow", response_model=WorkflowResponse)
@@ -148,6 +149,7 @@ async def workflow_chat(
             execution=result["execution"],
             review=result["review"],
             duration_ms=duration_ms,
+            step_timings_ms=result.get("step_timings_ms", {}),
         )
     except TimeoutError:
         logger.warning("agent_workflow_timeout", thread_id=str(thread_id), timeout_seconds=120)
