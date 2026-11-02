@@ -157,12 +157,28 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     }
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPublicModels() {
+      setLoading(true);
+      try {
+        const response = await fetchWithTimeout(`${API}/mlops/models`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Model Registry API: HTTP ${response.status}`);
+        const data = await response.json() as Model[];
+        if (!cancelled) { setModels(data); setModelsLoaded(true); setError(''); }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'A modelllista nem elérhető.');
+      } finally { if (!cancelled) setLoading(false); }
+    }
+    void loadPublicModels();
+    return () => { cancelled = true; };
+  }, []);
+
   async function loadModels() {
     setError('');
-    if (!auth) { setError('Jelentkezz be az Agents vagy a RAG oldalon.'); return; }
     setLoading(true);
     try {
-      const response = await authorizedGet('/mlops/models');
+      const response = await fetchWithTimeout(`${API}/mlops/models`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`Model Registry API: HTTP ${response.status}`);
       setModels(await response.json() as Model[]);
       setModelsLoaded(true);
@@ -254,7 +270,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
 
   return <section className="max-w-4xl space-y-5">
     <h2 className="text-xl font-semibold">MLOps / Model Registry</h2>
-    <p className="text-sm text-[#9AA3AE]">Verziózott modellek és deployment stage-ek a FastAPI backendről. Nem demo-adatok.</p>
+    <p className="text-sm text-[#9AA3AE]">Nyilvános, automatikusan frissülő modelllista a FastAPI backendről. Modellmódosításhoz bejelentkezés szükséges.</p>
     <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
       <p className="text-sm text-[#9AA3AE]">{auth ? 'Közös munkamenet: bejelentkezve.' : 'Jelentkezz be az Agents vagy a RAG oldalon. Nem kell tokent másolni.'}</p>
       <div className="flex flex-wrap items-center gap-3">
@@ -263,7 +279,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       </div>
       <button onClick={loadProfile} disabled={!auth || profileLoading} className="mr-2 rounded-lg border border-cyan-500/50 px-4 py-2 text-cyan-200 disabled:opacity-50">{profileLoading ? 'Ellenőrzés...' : 'Fiókom és jogosultságom'}</button>
       {profile && <p className="text-sm text-slate-200">Bejelentkezett fiók: <strong>{profile.email}</strong> · Szerepkör: <strong>{profile.role}</strong></p>}
-      <button onClick={loadModels} disabled={loading || !auth} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Lekérdezés...' : 'Modellek lekérdezése'}</button>
+      <button onClick={loadModels} disabled={loading} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Lekérdezés...' : 'Modellek lekérdezése'}</button>
     </div>
     <form onSubmit={createModel} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
       <h3 className="font-semibold">Új modell regisztrálása</h3>
@@ -312,7 +328,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       {runs[m.id] && <div className="mt-2 text-xs">{runs[m.id].length ? runs[m.id].map(run => <p key={run.id}>{run.metric_name}: {run.metric_value} ({run.duration_ms} ms)</p>) : "Nincs rögzített futás"}</div>}</td></tr>)}</tbody>
       </table>
     </div>
-    {!modelsLoaded && !loading && <p className="text-sm text-[#9AA3AE]">A modelladatok még nincsenek lekérdezve. Bejelentkezés után kattints a Modellek lekérdezése gombra.</p>}
+    {!modelsLoaded && !loading && <p className="text-sm text-[#9AA3AE]">A nyilvános modelladatok betöltése még nem sikerült. Kattints a Modellek lekérdezése gombra.</p>}
     {modelsLoaded && !models.length && !loading && <p className="text-sm text-[#9AA3AE]">A Model Registry API sikeresen válaszolt, de még nincs regisztrált modell.</p>}
   </section>;
 }
