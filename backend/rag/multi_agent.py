@@ -81,6 +81,16 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
         valid = {str(source["id"]) for source in trusted_sources}
         cited = set(re.findall(r"\[(\d+)\]", state["answer"]))
         verified = bool(documents and cited and cited.issubset(valid))
+        # Exact alphanumeric identifiers must occur in retrieved evidence.
+        # This catches fabricated test codes without changing citation checks.
+        identifiers = set(re.findall(r"(?<![\\w-])[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+(?<!\\w)", state["answer"]))
+        evidence = "\\n".join(str(doc.get("text", "")) for doc in documents)
+        if verified and any(identifier not in evidence for identifier in identifiers):
+            return {
+                "answer": "A válaszban szereplő azonosító nem található a dokumentumokban.",
+                "sources": trusted_sources,
+                "verified": False,
+            }
         if cited - valid:
             return {
                 "answer": "A válasz nem ellenőrizhető a rendelkezésre álló forrásokból.",
