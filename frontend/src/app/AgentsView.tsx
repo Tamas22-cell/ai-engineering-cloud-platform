@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
-type ChatResponse = { response: string; thread_id?: string; plan?: string; execution?: string; review?: string };
+type ChatResponse = { response: string; thread_id?: string; plan?: string; execution?: string; review?: string; duration_ms?: number };
 type AuthResponse = { access_token: string; refresh_token: string };
 type AgentMode = 'demo' | 'llm' | 'tools' | 'workflow';
 
@@ -161,6 +161,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
       </div>}
       {workflow && <div className="space-y-3" aria-label="Workflow eredmények">
         <p className="text-xs text-[#9AA3AE]">Workflow ID: {workflow.thread_id}</p>
+        {typeof workflow.duration_ms === 'number' && <p className="text-xs text-emerald-300">Futás sikeres · Időtartam: {(workflow.duration_ms / 1000).toFixed(2)} s</p>}
         {([['01 · Planner – terv', workflow.plan], ['02 · Executor – végrehajtás', workflow.execution], ['03 · Reviewer – ellenőrzés és végső válasz', workflow.review]] as const).map(([heading, content]) => (
           <article key={heading} className="rounded-xl border border-cyan-500/20 bg-white/5 p-4">
             <h3 className="mb-3 font-semibold text-cyan-300">{heading}</h3>
