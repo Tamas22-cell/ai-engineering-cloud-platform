@@ -1,5 +1,6 @@
 from typing import TypedDict, NotRequired
 from uuid import uuid4
+from time import perf_counter
 
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
@@ -16,6 +17,7 @@ class WorkflowState(TypedDict):
     review: str
     final_answer: str
     history: NotRequired[list[dict[str, str]]]
+    step_timings_ms: NotRequired[dict[str, float]]
 
 
 def format_history(history: list[dict[str, str]]) -> str:
@@ -133,11 +135,17 @@ async def reviewer(state: WorkflowState):
     }
 
 
+async def timed_step(name, operation, state):
+    started = perf_counter()
+    result = await operation(state)
+    return {**result, "step_timings_ms": {**state.get("step_timings_ms", {}), name: round((perf_counter() - started) * 1000, 2)}}
+
+
 graph = StateGraph(WorkflowState)
 
-graph.add_node("planner", planner)
-graph.add_node("executor", executor)
-graph.add_node("reviewer", reviewer)
+graph.add_node("planner", lambda state: timed_step("planner", planner, state))
+graph.add_node("executor", lambda state: timed_step("executor", executor, state))
+graph.add_node("reviewer", lambda state: timed_step("reviewer", reviewer, state))
 
 graph.add_edge(START, "planner")
 graph.add_edge("planner", "executor")
@@ -171,6 +179,7 @@ async def run_planner_executor_reviewer(
             "review": "",
             "final_answer": "",
             "history": history or [],
+            "step_timings_ms": {},
         },
         config={
             "recursion_limit": 10,
