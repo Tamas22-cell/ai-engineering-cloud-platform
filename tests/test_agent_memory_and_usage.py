@@ -36,11 +36,12 @@ async def test_llm_token_usage_is_logged(monkeypatch):
         usage=SimpleNamespace(input_tokens=12, output_tokens=4, total_tokens=16),
     )
     client = SimpleNamespace(responses=SimpleNamespace(create=AsyncMock(return_value=response)))
-    log = SimpleNamespace(info=AsyncMock())
+    from unittest.mock import Mock
+    log = SimpleNamespace(info=Mock())
     monkeypatch.setattr(llm_client, "create_llm_client", lambda: client)
     monkeypatch.setattr(llm_client, "logger", log)
     assert await llm_client.generate_response("test") == "OK"
-    log.info.assert_awaited_once_with(
+    log.info.assert_called_once_with(
         "agent_llm_token_usage", model="gpt-4.1-mini",
         input_tokens=12, output_tokens=4, total_tokens=16
     )
