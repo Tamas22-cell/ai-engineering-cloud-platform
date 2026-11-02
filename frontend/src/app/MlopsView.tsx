@@ -44,7 +44,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   const [directions, setDirections] = useState<Record<string, 'below' | 'above'>>({});
 
   useEffect(() => {
-    if (!auth) { setCurrentUser(null); setProfile(null); setModelsLoaded(false); setModels([]); return; }
+    if (!auth) { setCurrentUser(null); setProfile(null); return; }
     let cancelled = false;
     async function checkPermissions() {
       try {
@@ -233,8 +233,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
 
   async function loadRuns(modelId: string) {
     try {
-      if (!auth) throw new Error('Jelentkezz be az Agents vagy a RAG oldalon.');
-      const response = await authorizedGet(`/mlops/models/${encodeURIComponent(modelId)}/runs`);
+      const response = await fetchWithTimeout(`${API}/mlops/models/${encodeURIComponent(modelId)}/runs`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`Model run API: HTTP ${response.status}`);
       const data = (await response.json()) as ModelRun[];
       setRuns(previous => ({ ...previous, [modelId]: data }));
@@ -246,10 +245,9 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
 
   async function loadSummary(modelId: string) {
     try {
-      if (!auth) throw new Error('Jelentkezz be az Agents vagy a RAG oldalon.');
-      const metricName = (metricNames[modelId] || 'accuracy').trim();
+      const metricName = (metricNames[modelId] || 'mae').trim();
       if (!metricName) throw new Error('Adj meg egy metrikanevet.');
-      const rawThreshold = (thresholds[modelId] ?? '0.8').trim();
+      const rawThreshold = (thresholds[modelId] ?? '').trim();
       const parsedThreshold = rawThreshold === '' ? null : Number(rawThreshold);
       if (parsedThreshold !== null && !Number.isFinite(parsedThreshold)) {
         throw new Error('A küszöbértéknek véges számnak kell lennie.');
@@ -257,7 +255,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       const direction = directions[modelId] || 'below';
       const params = new URLSearchParams({ direction });
       if (parsedThreshold !== null) params.set('threshold', String(parsedThreshold));
-      const response = await authorizedGet(`/mlops/models/${encodeURIComponent(modelId)}/metrics/${encodeURIComponent(metricName)}/summary?${params}`);
+      const response = await fetchWithTimeout(`${API}/mlops/models/${encodeURIComponent(modelId)}/metrics/${encodeURIComponent(metricName)}/summary?${params}`, { cache: 'no-store' });
       if (response.status === 404) { setSummaries(previous => { const next = { ...previous }; delete next[modelId]; return next; }); throw new Error(`Ehhez a metrikához még nincs mérés: ${metricName}`); }
       if (!response.ok) throw new Error(`Metric summary: HTTP ${response.status}`);
       const data = (await response.json()) as MetricSummary;
@@ -297,8 +295,8 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       <table className="w-full text-left text-sm">
         <thead className="bg-white/5"><tr><th className="p-3">Modell</th><th className="p-3">Verzió</th><th className="p-3">Framework</th><th className="p-3">Stage</th><th className="p-3">Metrikák</th></tr></thead>
         <tbody>{models.map(m => <tr key={m.id} className="border-t border-white/10"><td className="p-3">{m.name}</td><td className="p-3">{m.version}</td><td className="p-3">{m.framework}</td><td className="p-3">{m.stage}</td><td className="p-3"><button className="underline text-cyan-300" onClick={() => loadRuns(m.id)}>Futások</button><div className="mt-2 flex flex-wrap items-center gap-2">
-        <input aria-label={`Metrika neve: ${m.name}`} value={metricNames[m.id] ?? 'accuracy'} onChange={e => { setMetricNames(p => ({ ...p, [m.id]: e.target.value })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} placeholder="Metrika (pl. accuracy)" className="w-32 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
-        <input aria-label={`Küszöbérték: ${m.name}`} type="number" step="any" value={thresholds[m.id] ?? '0.8'} onChange={e => { setThresholds(p => ({ ...p, [m.id]: e.target.value })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} placeholder="Küszöb (opcionális)" className="w-28 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
+        <input aria-label={`Metrika neve: ${m.name}`} value={metricNames[m.id] ?? (m.name === 'Synthetic Regression Baseline' ? 'mae' : 'accuracy')} onChange={e => { setMetricNames(p => ({ ...p, [m.id]: e.target.value })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} placeholder="Metrika (pl. accuracy)" className="w-32 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
+        <input aria-label={`Küszöbérték: ${m.name}`} type="number" step="any" value={thresholds[m.id] ?? ''} onChange={e => { setThresholds(p => ({ ...p, [m.id]: e.target.value })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} placeholder="Küszöb (opcionális)" className="w-28 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
         <select aria-label={`Riasztás iránya: ${m.name}`} value={directions[m.id] ?? 'below'} onChange={e => { setDirections(p => ({ ...p, [m.id]: e.target.value as 'below' | 'above' })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} className="rounded border border-white/15 bg-[#11151C] p-1 text-xs">
           <option value="below">Alatta</option><option value="above">Felett</option>
         </select>
