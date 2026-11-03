@@ -12,6 +12,7 @@ from uuid import UUID
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -114,6 +115,51 @@ async def train_regression(
         "metrics": {"mae": mae, "rmse": rmse, "r2": r2},
         "duration_ms": round((perf_counter() - started) * 1000, 2),
     }
+
+
+@router.get("/experiments/{experiment_id}/artifact-versions")
+async def list_artifact_versions(
+    experiment_id: str,
+    user=Depends(require_role("admin", "developer")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Read-only catalog of immutable training run artifacts; no active version changes."""
+    try:
+        experiment_id = str(UUID(experiment_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid experiment ID")
+    if await db.get(MLExperiment, experiment_id) is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    result = await db.execute(
+        select(MLExperimentRun)
+        .where(MLExperimentRun.experiment_id == experiment_id, MLExperimentRun.status == "completed")
+        .order_by(MLExperimentRun.created_at.desc(), MLExperimentRun.id.desc())
+        .limit(100)
+    )
+    versions = []
+    for run in result.scalars():
+        data = run.hyperparameters or {}
+        artifact, digest = data.get("model_artifact"), data.get("artifact_sha256")
+        if not isinstance(artifact, dict) or not isinstance(digest, str):
+            continue
+        try:
+            canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            valid = hmac.compare_digest(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), digest)
+        except (TypeError, ValueError):
+            valid = False
+        versions.append({
+            "version_id": run.id,
+            "run_id": run.id,
+            "artifact_sha256": digest,
+            "integrity_ok": valid,
+            "schema_version": artifact.get("schema_version"),
+            "dataset_version": run.dataset_version,
+            "git_commit_sha": run.git_commit_sha,
+            "created_at": run.created_at,
+            "active": False,
+        })
+    return {"experiment_id": experiment_id, "versions": versions,
+            "active_version_id": None, "rollback_supported": False}
 
 
 @router.get("/runs/{run_id}/artifact")
