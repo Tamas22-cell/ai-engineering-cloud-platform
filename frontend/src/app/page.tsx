@@ -135,7 +135,7 @@ export default function HomePage() {
             <DataEngineeringView />
           )}
           {active === 'devops' && (
-            <Placeholder title="DevOps & CI/CD" phase="Phase 2 / 5" />
+            <DevOpsView />
           )}
           {active === 'infra' && (
             <Placeholder title="Cloud Infrastructure" phase="Phase 5" />
@@ -509,4 +509,60 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Legutóbbi kérdés összesítése</h3><p>Forrásellenőrzés: {telemetry.verified ? 'Sikeres' : 'Nem igazolt'}</p><p>LLM modell: {telemetry.usage?.model ?? 'Nem jelentett'}</p><p>LLM tokenek: {telemetry.usage?.total_tokens ?? 'Nem jelentett'}</p><p>Becsült LLM költség: {telemetry.usage?.estimated_cost_usd == null ? 'Nincs konfigurálva' : `$${telemetry.usage.estimated_cost_usd}`}</p><p className="text-xs text-slate-400">A tokenköltség nem tartalmazza automatikusan az embedding és infrastruktúra költségeit. Az adatok oldalfrissítéskor elvesznek.</p></div>
     </>}
   </section>;
+}
+
+function DevOpsView() {
+  const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [database, setDatabase] = useState('Checking...');
+  const [checkedAt, setCheckedAt] = useState('');
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      setStatus('checking');
+      try {
+        const live = await fetch('/backend/health/live', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+        if (!live.ok) throw new Error('Backend unavailable');
+        if (cancelled) return;
+        setStatus('online');
+        try {
+          const ready = await fetch('/backend/health/ready', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+          const result = await ready.json() as HealthResponse;
+          if (!cancelled) setDatabase(ready.ok && result.status === 'ready' && result.database === 'connected' ? 'Connected' : 'Not ready');
+        } catch {
+          if (!cancelled) setDatabase('Unavailable');
+        }
+      } catch {
+        if (!cancelled) { setStatus('offline'); setDatabase('Unavailable'); }
+      } finally {
+        if (!cancelled) setCheckedAt(new Date().toLocaleTimeString());
+      }
+    }
+    void check();
+    return () => { cancelled = true; };
+  }, [refresh]);
+
+  return (
+    <section className="max-w-4xl space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="text-xl font-semibold">DevOps & CI/CD</h2><p className="text-sm text-slate-400">Valós idejű backend- és adatbázis-ellenőrzés; CI/CD állapot a szolgáltatóknál.</p></div>
+        <button type="button" onClick={() => setRefresh(n => n + 1)} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200">Állapot frissítése</button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">FastAPI / Render</h3><p className="mt-2 text-xl font-semibold" role="status">{status === 'checking' ? 'Checking...' : status === 'online' ? 'Online' : 'Offline / unreachable'}</p><p className="mt-2 text-xs text-slate-400">/backend/health/live</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">PostgreSQL readiness</h3><p className="mt-2 text-xl font-semibold" role="status">{database}</p><p className="mt-2 text-xs text-slate-400">/backend/health/ready</p></div>
+      </div>
+      <p className="text-xs text-slate-400">{checkedAt ? `Utolsó ellenőrzés: ${checkedAt}` : 'Ellenőrzés folyamatban'}. A hálózati hiba nem bizonyítja, hogy a szolgáltatás leállt.</p>
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
+        <h3 className="font-semibold">CI/CD és deployment</h3>
+        <p className="text-sm text-slate-400">A GitHub Actions és Vercel aktuális buildállapotát a szolgáltatók saját felülete mutatja. Itt nem jelenítünk meg nem ellenőrzött sikeres státuszt.</p>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <a className="text-cyan-300 underline" href="https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
+          <a className="text-cyan-300 underline" href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">Vercel deployments</a>
+          <a className="text-cyan-300 underline" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Render dashboard</a>
+        </div>
+      </div>
+    </section>
+  );
 }
