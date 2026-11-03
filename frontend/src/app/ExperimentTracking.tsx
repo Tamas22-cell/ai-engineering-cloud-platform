@@ -424,7 +424,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           <input aria-label="Metrika értéke" type="number" step="any" value={metricInputs[run.id]?.value ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: previous[run.id]?.name ?? '', value: e.target.value } }))} placeholder="Érték" className="w-28 rounded border border-white/15 bg-[#11151C] p-2" />
           <button type="button" disabled={busyRun !== null} onClick={() => void recordRunMetric(run.id)} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">Metrika mentése</button>
         </div>}
-        {canWrite && run.status === 'completed' && run.hyperparameters?.model_artifact && <div className="space-y-2 rounded border border-cyan-400/20 p-3">
+        {canWrite && run.status === 'completed' && Boolean(run.hyperparameters?.model_artifact) && <div className="space-y-2 rounded border border-cyan-400/20 p-3">
           <label className="block text-xs text-slate-300">Predict · bemeneti X értékek (vesszővel elválasztva)
             <input aria-label={`Predict inputs ${run.id}`} value={predictInputs[run.id] ?? '0, 1, 2'} onChange={e => setPredictInputs(previous => ({ ...previous, [run.id]: e.target.value }))} placeholder="0, 1, 2" className="mt-1 w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
           </label>
