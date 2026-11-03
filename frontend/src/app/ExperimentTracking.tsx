@@ -21,6 +21,8 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [creatingRun, setCreatingRun] = useState(false);
   const [training, setTraining] = useState(false);
   const [comparing, setComparing] = useState(false);
+  const [promoting, setPromoting] = useState(false);
+  const [promotionResult, setPromotionResult] = useState('');
   const [candidateRun, setCandidateRun] = useState<string | null>(null);
   const [readiness, setReadiness] = useState<{ ready_for_staging_review: boolean; checks: Record<string, boolean> } | null>(null);
   const [comparison, setComparison] = useState<{ id: string; mae: number; rmse: number | null; r2: number | null }[]>([]);
@@ -50,6 +52,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     setComparison([]);
     setCandidateRun(null);
     setReadiness(null);
+    setPromotionResult('');
     if (!selected) { setRuns([]); setMetrics({}); return; }
     let cancelled = false;
     async function load() {
@@ -208,6 +211,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   async function checkStaging(runId: string) {
     setCandidateRun(runId);
     setReadiness(null);
+    setPromotionResult('');
     try {
       const response = await fetch(`${API}/mlops/experiments/runs/${encodeURIComponent(runId)}/staging-readiness`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`Staging API HTTP ${response.status}`);
@@ -236,6 +240,20 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       response = await submit(tokens.access_token);
     }
     if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+  }
+
+  async function promoteStaging(runId: string) {
+    if (role !== 'admin' || !auth || promoting || !readiness?.ready_for_staging_review) return;
+    if (!window.confirm('A regisztrált modell státusza staging lesz. Ez adatbázis-módosítás, nem modelltelepítés. Folytatod?')) return;
+    setPromoting(true);
+    setError('');
+    setPromotionResult('');
+    try {
+      await authorizedWrite(`/mlops/experiments/runs/${encodeURIComponent(runId)}/promote-to-staging`, 'POST', {});
+      setPromotionResult('Sikeres staging promotion: a modell regisztrációja staging állapotú. Artifact még nincs telepítve.');
+      await checkStaging(runId);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Staging promotion sikertelen'); }
+    finally { setPromoting(false); }
   }
 
   async function changeStatus(runId: string, status: string) {
@@ -323,6 +341,8 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           <button type="button" onClick={() => void checkStaging(comparison[0].id)} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200">Best run staging előkészítés</button>
           {candidateRun === comparison[0].id && <p className="mt-2 text-xs text-amber-200">Staging jelölt: {candidateRun}. Regisztrált modell: {models.find(m => m.id === experiments.find(e => e.id === selected)?.model_id)?.name ?? 'Nincs találat'}. Ez csak előkészítés, nem modelltelepítés.</p>}
           {candidateRun === comparison[0].id && readiness && <p className="mt-2 text-xs text-cyan-200">Backend validáció: {readiness.ready_for_staging_review ? 'Staging review kész' : 'Hiányos'} · {Object.entries(readiness.checks).map(([key, ok]) => `${key}: ${ok ? 'OK' : 'HIÁNYZIK'}`).join(' · ')}</p>}
+          {candidateRun === comparison[0].id && readiness?.ready_for_staging_review && role === 'admin' && <button type="button" disabled={promoting} onClick={() => void promoteStaging(candidateRun)} className="mt-2 rounded border border-amber-400/50 px-3 py-2 text-xs text-amber-200 disabled:opacity-50">{promoting ? 'Staging promotion folyamatban...' : 'Promote to Staging (admin)'}</button>}
+          {promotionResult && <p role="status" className="mt-2 text-xs text-emerald-200">{promotionResult}</p>}
           <p className="mt-2 text-xs text-slate-400">Csak az MAE metrikával rendelkező futások szerepelnek. Az összehasonlítás nem telepít modellt; különböző adatkészletek eredményei nem feltétlenül összevethetők.</p>
         </div>}
         {!comparing && comparison.length === 0 && <p className="text-xs text-slate-500">Kattints a Compare Runs gombra a metrikák betöltéséhez.</p>}
