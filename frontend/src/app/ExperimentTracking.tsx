@@ -18,6 +18,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [modelId, setModelId] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [creatingRun, setCreatingRun] = useState(false);
   const canWrite = !!auth && (role === 'admin' || role === 'developer');
 
   const loadExperiments = useCallback(async () => {
@@ -76,6 +77,36 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     } catch (e) { setError(e instanceof Error ? e.message : 'Létrehozás sikertelen'); }
   }
 
+
+  async function createRun() {
+    if (!selected || !auth || !canWrite || creatingRun) return;
+    setCreatingRun(true);
+    setError('');
+    try {
+      const submit = (token: string) => fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ hyperparameters: {} }),
+      });
+      let response = await submit(auth.access_token);
+      if (response.status === 401) {
+        const refresh = await fetch(`${API}/auth/refresh`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: auth.refresh_token }),
+        });
+        if (!refresh.ok) { setAuth(null); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+        const tokens = await refresh.json() as Auth;
+        setAuth(tokens);
+        response = await submit(tokens.access_token);
+      }
+      if (!response.ok) throw new Error(`Futás létrehozása: HTTP ${response.status}`);
+      const updated = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
+      if (!updated.ok) throw new Error(`Futások lekérdezése: HTTP ${updated.status}`);
+      setRuns(await updated.json() as Run[]);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Futás létrehozása sikertelen'); }
+    finally { setCreatingRun(false); }
+  }
+
   async function showMetrics(runId: string) {
     try {
       const response = await fetch(`${API}/mlops/experiments/runs/${encodeURIComponent(runId)}/metrics`, { cache: 'no-store' });
@@ -105,6 +136,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     </select>
     {selected && <div className="space-y-2">
       <p className="text-xs text-slate-400">{runs.length} futás (legfeljebb 50)</p>
+      {canWrite && <button type="button" disabled={creatingRun} onClick={() => void createRun()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{creatingRun ? "Létrehozás..." : "Új futás létrehozása"}</button>}
       {runs.map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs space-y-2">
         <p className="font-medium text-cyan-200">{run.id} · {run.status}</p>
         <p>Dataset: {run.dataset_version || '—'} · Commit: {run.git_commit_sha?.slice(0, 12) || '—'}</p>
