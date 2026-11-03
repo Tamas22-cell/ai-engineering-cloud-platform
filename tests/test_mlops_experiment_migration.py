@@ -4,13 +4,16 @@ from pathlib import Path
 from alembic.script import ScriptDirectory
 
 
-def test_experiment_migration_is_alembic_head():
+def test_experiment_migration_is_in_alembic_history():
     root = Path(__file__).resolve().parents[1]
     script = ScriptDirectory(str(root / "migrations"))
     revision = script.get_revision("e91b7c4a620f")
     assert revision is not None
     assert revision.down_revision == "c32e71a9d404"
-    assert "e91b7c4a620f" in script.get_heads()
+    active_revision = script.get_revision("b8e63a7c1d20")
+    assert active_revision is not None
+    assert active_revision.down_revision == "e91b7c4a620f"
+    assert script.get_heads() == ["b8e63a7c1d20"]
 
 
 def test_experiment_migration_creates_only_isolated_tables(monkeypatch):
