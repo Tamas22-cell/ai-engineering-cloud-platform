@@ -20,6 +20,9 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [loading, setLoading] = useState(false);
   const [creatingRun, setCreatingRun] = useState(false);
   const [training, setTraining] = useState(false);
+  const [predictInputs, setPredictInputs] = useState<Record<string, string>>({});
+  const [predictBusy, setPredictBusy] = useState<string | null>(null);
+  const [predictResults, setPredictResults] = useState<Record<string, number[]>>({});
   const [comparing, setComparing] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [promotionResult, setPromotionResult] = useState('');
@@ -49,6 +52,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
 
   useEffect(() => {
     setTrainingResult(null);
+    setPredictResults({});
     setComparison([]);
     setCandidateRun(null);
     setReadiness(null);
@@ -179,6 +183,50 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       setError(e instanceof Error ? e.message : 'Nem sikerült elindítani a tanítást.');
     } finally {
       setTraining(false);
+    }
+  }
+
+  async function predictRun(runId: string) {
+    if (!canWrite || !auth || predictBusy) return;
+    const raw = (predictInputs[runId] ?? '0, 1, 2').split(',').map(value => value.trim());
+    const values = raw.map(Number);
+    if (raw.length < 1 || raw.length > 1000 || raw.some(value => !value) || values.some(value => !Number.isFinite(value))) {
+      setError('Adj meg 1–1000 véges számot, vesszővel elválasztva.');
+      return;
+    }
+    setPredictBusy(runId);
+    setError('');
+    setPredictResults(previous => { const next = { ...previous }; delete next[runId]; return next; });
+    try {
+      const submit = (token: string) => fetch(`${API}/mlops/training/runs/${encodeURIComponent(runId)}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ values }),
+      });
+      let response = await submit(auth.access_token);
+      if (response.status === 401) {
+        const refresh = await fetch(`${API}/auth/refresh`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: auth.refresh_token }),
+        });
+        if (!refresh.ok) {
+          setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous);
+          throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+        }
+        const tokens = await refresh.json() as Auth;
+        setAuth(tokens);
+        response = await submit(tokens.access_token);
+      }
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null) as { detail?: string } | null;
+        throw new Error(detail?.detail || `Prediction API: HTTP ${response.status}`);
+      }
+      const result = await response.json() as { predictions: number[] };
+      setPredictResults(previous => ({ ...previous, [runId]: result.predictions }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Előrejelzés sikertelen.');
+    } finally {
+      setPredictBusy(null);
     }
   }
 
@@ -375,6 +423,13 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           <input aria-label="Metrika neve" maxLength={80} value={metricInputs[run.id]?.name ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: e.target.value, value: previous[run.id]?.value ?? '' } }))} placeholder="Metrika neve" className="rounded border border-white/15 bg-[#11151C] p-2" />
           <input aria-label="Metrika értéke" type="number" step="any" value={metricInputs[run.id]?.value ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: previous[run.id]?.name ?? '', value: e.target.value } }))} placeholder="Érték" className="w-28 rounded border border-white/15 bg-[#11151C] p-2" />
           <button type="button" disabled={busyRun !== null} onClick={() => void recordRunMetric(run.id)} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">Metrika mentése</button>
+        </div>}
+        {canWrite && run.status === 'completed' && Boolean(run.hyperparameters?.model_artifact) && <div className="space-y-2 rounded border border-cyan-400/20 p-3">
+          <label className="block text-xs text-slate-300">Predict · bemeneti X értékek (vesszővel elválasztva)
+            <input aria-label={`Predict inputs ${run.id}`} value={predictInputs[run.id] ?? '0, 1, 2'} onChange={e => setPredictInputs(previous => ({ ...previous, [run.id]: e.target.value }))} placeholder="0, 1, 2" className="mt-1 w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+          </label>
+          <button type="button" disabled={predictBusy !== null} onClick={() => void predictRun(run.id)} className="rounded bg-cyan-500 px-3 py-2 text-xs font-medium text-black disabled:opacity-50">{predictBusy === run.id ? 'Számítás...' : 'Predict'}</button>
+          {predictResults[run.id] && <p role="status" className="break-words text-emerald-200">Előrejelzés: {predictResults[run.id].map(value => value.toFixed(4)).join(', ')}</p>}
         </div>}
         <button type="button" onClick={() => void showMetrics(run.id)} className="text-cyan-300 underline">Metrikák megjelenítése</button>
         {metrics[run.id] && <div className="space-y-1">{metrics[run.id].length ? metrics[run.id].map(m => <p key={m.id}>{m.name}: {m.value} (step {m.step})</p>) : <p>Még nincs metrika.</p>}</div>}
