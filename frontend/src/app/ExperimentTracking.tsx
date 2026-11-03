@@ -19,6 +19,8 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [creatingRun, setCreatingRun] = useState(false);
+  const [training, setTraining] = useState(false);
+  const [trainingResult, setTrainingResult] = useState<{ run_id: string; metrics: { mae: number; rmse: number; r2: number } } | null>(null);
   const [datasetVersion, setDatasetVersion] = useState('');
   const [gitCommitSha, setGitCommitSha] = useState('');
   const [hyperparametersText, setHyperparametersText] = useState('{}');
@@ -40,6 +42,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   useEffect(() => { void loadExperiments(); }, [loadExperiments]);
 
   useEffect(() => {
+    setTrainingResult(null);
     if (!selected) { setRuns([]); setMetrics({}); return; }
     let cancelled = false;
     async function load() {
@@ -132,6 +135,43 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   }
 
 
+  async function trainModel() {
+    if (!selected || !canWrite || !auth || training) return;
+    setTraining(true);
+    setTrainingResult(null);
+    setError('');
+    try {
+      const submit = (token: string) => fetch(`${API}/mlops/training/experiments/${encodeURIComponent(selected)}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ samples: 200, noise: 0.15, seed: 42, learning_rate: 0.05, epochs: 200 }),
+      });
+      let response = await submit(auth.access_token);
+      if (response.status === 401) {
+        const refresh = await fetch(`${API}/auth/refresh`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: auth.refresh_token }),
+        });
+        if (!refresh.ok) {
+          setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous);
+          throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+        }
+        const tokens = await refresh.json() as Auth;
+        setAuth(tokens);
+        response = await submit(tokens.access_token);
+      }
+      if (!response.ok) throw new Error(`Tanítás sikertelen: HTTP ${response.status}`);
+      const result = await response.json() as { run_id: string; metrics: { mae: number; rmse: number; r2: number } };
+      setTrainingResult(result);
+      const updated = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
+      if (updated.ok) setRuns(await updated.json() as Run[]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Nem sikerült elindítani a tanítást.');
+    } finally {
+      setTraining(false);
+    }
+  }
+
   async function authorizedWrite(path: string, method: 'POST' | 'PATCH', payload: object) {
     if (!auth) throw new Error('Jelentkezz be újra.');
     const submit = (token: string) => fetch(`${API}${path}`, {
@@ -211,6 +251,13 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     </select>
     {selected && <div className="space-y-2">
       <p className="text-xs text-slate-400">{runs.length} futás (legfeljebb 50)</p>
+      {canWrite && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-cyan-400/20 bg-black/20 p-3">
+        <button type="button" disabled={training} onClick={() => void trainModel()} className="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">{training ? 'Tanítás folyamatban...' : 'Train Model'}</button>
+        <span className="text-xs text-slate-400">Szintetikus regresszió · 200 minta · 200 epoch</span>
+      </div>}
+      {trainingResult && <div role="status" className="rounded border border-emerald-400/30 p-3 text-sm text-emerald-200">
+        Tanítás kész · MAE: {trainingResult.metrics.mae.toFixed(4)} · RMSE: {trainingResult.metrics.rmse.toFixed(4)} · R²: {trainingResult.metrics.r2.toFixed(4)}
+      </div>}
       {canWrite && <div className="space-y-3 rounded-lg border border-white/10 bg-black/20 p-3">
         <p className="text-sm font-medium text-slate-100">Új futás adatai</p>
         <div className="grid gap-2 sm:grid-cols-2">
