@@ -13,6 +13,7 @@ from core.database import get_db
 from core.rbac import require_role
 from models.ml_experiment import MLExperiment, MLExperimentRun, MLExperimentMetric
 from models.model_registry import RegisteredModel
+from models.audit_log import AuditLog
 
 router = APIRouter(prefix="/mlops/experiments", tags=["MLOps Experiments"])
 
@@ -178,4 +179,48 @@ async def staging_readiness(run_id: str, db: AsyncSession = Depends(get_db)):
         "checks": checks,
         "ready_for_staging_review": all(checks.values()),
         "deployed": False,
+    }
+
+
+@router.post("/runs/{run_id}/promote-to-staging")
+async def promote_run_to_staging(
+    run_id: str,
+    user=Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only, transactional registry stage transition; not an artifact deployment."""
+    rid = valid_id(run_id)
+    run = await db.get(MLExperimentRun, rid)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    experiment = await db.get(MLExperiment, run.experiment_id)
+    if experiment is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    row = await db.execute(
+        select(RegisteredModel).where(RegisteredModel.id == experiment.model_id).with_for_update()
+    )
+    model = row.scalar_one_or_none()
+    if model is None:
+        raise HTTPException(status_code=404, detail="Registered model not found")
+    if model.stage != "development":
+        raise HTTPException(status_code=409, detail="Only development models can be promoted to staging")
+    metrics = await db.execute(
+        select(MLExperimentMetric.value).where(
+            MLExperimentMetric.run_id == rid,
+            MLExperimentMetric.name == "mae",
+        )
+    )
+    has_mae = any(isfinite(value) for value in metrics.scalars())
+    if not (run.status == "completed" and has_mae and run.dataset_version and run.git_commit_sha):
+        raise HTTPException(status_code=409, detail="Run failed staging readiness checks")
+    model.stage = "staging"
+    db.add(AuditLog(event_type=f"mlops.staging.promoted:{model.id}:{rid}", user_id=str(user.id)))
+    await db.commit()
+    return {
+        "run_id": rid,
+        "model_id": model.id,
+        "model_stage": model.stage,
+        "promoted_by": str(user.id),
+        "audit_logged": True,
+        "artifact_deployed": False,
     }
