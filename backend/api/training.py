@@ -18,6 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.rbac import require_role
 from models.ml_experiment import MLExperiment, MLExperimentRun, MLExperimentMetric
+from models.active_model_version import ActiveModelVersion
+from models.audit_log import AuditLog
 
 router = APIRouter(prefix="/mlops/training", tags=["MLOps Training"])
 
@@ -272,3 +274,67 @@ async def predict_from_training_run(
         raise HTTPException(status_code=422, detail="Invalid model artifact or input")
     return {"run_id": run.id, "artifact_sha256": digest,
             "predictions": predictions, "count": len(predictions)}
+
+
+@router.get("/experiments/{experiment_id}/active-version")
+async def get_active_version(
+    experiment_id: str,
+    user=Depends(require_role("admin", "developer")),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        eid = str(UUID(experiment_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid experiment ID")
+    if await db.get(MLExperiment, eid) is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    pointer = await db.get(ActiveModelVersion, eid)
+    return {"experiment_id": eid, "active_run_id": pointer.run_id if pointer else None,
+            "activated_at": pointer.activated_at if pointer else None}
+
+
+@router.post("/experiments/{experiment_id}/active-version/{run_id}")
+async def activate_model_version(
+    experiment_id: str,
+    run_id: str,
+    user=Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only atomic pointer switch; does not deploy an artifact."""
+    try:
+        eid, rid = str(UUID(experiment_id)), str(UUID(run_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid ID")
+    # Lock experiment to serialize competing activation requests, including initial activation.
+    experiment = (await db.execute(
+        select(MLExperiment).where(MLExperiment.id == eid).with_for_update()
+    )).scalar_one_or_none()
+    if experiment is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    run = await db.get(MLExperimentRun, rid)
+    if run is None or run.experiment_id != eid:
+        raise HTTPException(status_code=404, detail="Run not found in experiment")
+    params = run.hyperparameters or {}
+    artifact, digest = params.get("model_artifact"), params.get("artifact_sha256")
+    if run.status != "completed" or not isinstance(artifact, dict) or not isinstance(digest, str):
+        raise HTTPException(status_code=409, detail="Run has no completed model artifact")
+    try:
+        canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        valid = hmac.compare_digest(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), digest)
+    except (TypeError, ValueError):
+        valid = False
+    if not valid or artifact.get("schema_version") != 1 or artifact.get("algorithm") != "numpy_gradient_descent":
+        raise HTTPException(status_code=409, detail="Unsupported or corrupted model artifact")
+    pointer = await db.get(ActiveModelVersion, eid)
+    previous_run_id = pointer.run_id if pointer else None
+    if pointer is None:
+        pointer = ActiveModelVersion(experiment_id=eid, run_id=rid, activated_by=str(user.id))
+        db.add(pointer)
+    else:
+        pointer.run_id = rid
+        pointer.activated_by = str(user.id)
+        pointer.activated_at = datetime.now(timezone.utc)
+    db.add(AuditLog(event_type="mlops_active_version_changed", user_id=str(user.id)))
+    await db.commit()
+    return {"experiment_id": eid, "previous_run_id": previous_run_id,
+            "active_run_id": rid, "artifact_deployed": False}
