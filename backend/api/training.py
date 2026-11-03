@@ -338,3 +338,27 @@ async def activate_model_version(
     await db.commit()
     return {"experiment_id": eid, "previous_run_id": previous_run_id,
             "active_run_id": rid, "artifact_deployed": False}
+
+
+@router.post("/experiments/{experiment_id}/predict-active")
+async def predict_active_model(
+    experiment_id: str,
+    request: InferenceRequest,
+    user=Depends(require_role("admin", "developer")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resolve the durable active run and reuse artifact-verified inference."""
+    try:
+        eid = str(UUID(experiment_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid experiment ID")
+    if await db.get(MLExperiment, eid) is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    pointer = await db.get(ActiveModelVersion, eid)
+    if pointer is None:
+        raise HTTPException(status_code=409, detail="No active model version selected")
+    run = await db.get(MLExperimentRun, pointer.run_id)
+    if run is None or run.experiment_id != eid:
+        raise HTTPException(status_code=409, detail="Active model version is inconsistent")
+    result = await predict_from_training_run(run.id, request, user=user, db=db)
+    return {"experiment_id": eid, "active_run_id": run.id, **result}
