@@ -19,6 +19,9 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [creatingRun, setCreatingRun] = useState(false);
+  const [datasetVersion, setDatasetVersion] = useState('');
+  const [gitCommitSha, setGitCommitSha] = useState('');
+  const [hyperparametersText, setHyperparametersText] = useState('{}');
   const [busyRun, setBusyRun] = useState<string | null>(null);
   const [metricInputs, setMetricInputs] = useState<Record<string, { name: string; value: string }>>({});
   const canWrite = !!auth && (role === 'admin' || role === 'developer');
@@ -82,13 +85,29 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
 
   async function createRun() {
     if (!selected || !auth || !canWrite || creatingRun) return;
+    let hyperparameters: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(hyperparametersText);
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('A hiperparamétereknek JSON objektumnak kell lenniük.');
+      }
+      hyperparameters = parsed as Record<string, unknown>;
+    } catch (e) {
+      setError(e instanceof SyntaxError ? 'Hibás hiperparaméter JSON.' : e instanceof Error ? e.message : 'Hibás JSON.');
+      return;
+    }
+    const sha = gitCommitSha.trim();
+    if (sha && !/^[0-9a-fA-F]{40}$/.test(sha)) {
+      setError('A Git commit SHA pontosan 40 hexadecimális karakter legyen.');
+      return;
+    }
     setCreatingRun(true);
     setError('');
     try {
       const submit = (token: string) => fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ hyperparameters: {} }),
+        body: JSON.stringify({ hyperparameters, dataset_version: datasetVersion.trim() || null, git_commit_sha: sha || null }),
       });
       let response = await submit(auth.access_token);
       if (response.status === 401) {
@@ -105,6 +124,9 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const updated = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
       if (!updated.ok) throw new Error(`Futások lekérdezése: HTTP ${updated.status}`);
       setRuns(await updated.json() as Run[]);
+      setDatasetVersion('');
+      setGitCommitSha('');
+      setHyperparametersText('{}');
     } catch (e) { setError(e instanceof Error ? e.message : 'Futás létrehozása sikertelen'); }
     finally { setCreatingRun(false); }
   }
@@ -189,7 +211,21 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     </select>
     {selected && <div className="space-y-2">
       <p className="text-xs text-slate-400">{runs.length} futás (legfeljebb 50)</p>
-      {canWrite && <button type="button" disabled={creatingRun} onClick={() => void createRun()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{creatingRun ? "Létrehozás..." : "Új futás létrehozása"}</button>}
+      {canWrite && <div className="space-y-3 rounded-lg border border-white/10 bg-black/20 p-3">
+        <p className="text-sm font-medium text-slate-100">Új futás adatai</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="space-y-1 text-xs text-slate-300">Dataset verzió (opcionális)
+            <input aria-label="Dataset verzió" maxLength={160} value={datasetVersion} onChange={e => setDatasetVersion(e.target.value)} placeholder="pl. dataset-v1.2" className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+          </label>
+          <label className="space-y-1 text-xs text-slate-300">Git commit SHA (opcionális, 40 hex karakter)
+            <input aria-label="Git commit SHA" maxLength={40} value={gitCommitSha} onChange={e => setGitCommitSha(e.target.value)} placeholder="40 karakteres commit hash" className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+          </label>
+        </div>
+        <label className="block space-y-1 text-xs text-slate-300">Hiperparaméterek (JSON objektum)
+          <textarea aria-label="Hiperparaméterek JSON" rows={3} value={hyperparametersText} onChange={e => setHyperparametersText(e.target.value)} spellCheck={false} className="w-full rounded border border-white/15 bg-[#11151C] p-2 font-mono text-sm" />
+        </label>
+        <button type="button" disabled={creatingRun} onClick={() => void createRun()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{creatingRun ? 'Létrehozás...' : 'Új futás létrehozása'}</button>
+      </div>}
       {runs.map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs space-y-2">
         <p className="font-medium text-cyan-200">{run.id} · {run.status}</p>
         <p>Dataset: {run.dataset_version || '—'} · Commit: {run.git_commit_sha?.slice(0, 12) || '—'}</p>
