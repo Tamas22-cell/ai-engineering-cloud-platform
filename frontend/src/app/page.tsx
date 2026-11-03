@@ -633,6 +633,22 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
   const [state, setState] = useState<'loading' | 'signed-out' | 'verified' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [refresh, setRefresh] = useState(0);
+  const [publicHealth, setPublicHealth] = useState('Checking...');
+
+  useEffect(() => {
+    let cancelled = false;
+    setPublicHealth('Checking...');
+    async function check() {
+      try {
+        const res = await fetch('/backend/health/live', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+        if (!cancelled) setPublicHealth(res.ok ? 'Online' : 'Unreachable');
+      } catch {
+        if (!cancelled) setPublicHealth('Unreachable');
+      }
+    }
+    void check();
+    return () => { cancelled = true; };
+  }, [refresh]);
 
   useEffect(() => {
     let cancelled = false;
@@ -679,23 +695,24 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
   return (
     <section className="max-w-4xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-xl font-semibold">Security & Access</h2><p className="text-sm text-slate-400">Hitelesített felhasználói fiók és szerveroldali jogosultságok.</p></div>
+        <div><h2 className="text-xl font-semibold">Security & Access</h2><p className="text-sm text-slate-400">Publikus rendszerállapot bejelentkezés nélkül; személyes jogosultságok csak hitelesítve.</p></div>
         <button type="button" onClick={() => setRefresh(n => n + 1)} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200">Újraellenőrzés</button>
       </div>
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Public backend health</h3><p className="mt-2 text-xl font-semibold" role="status">{publicHealth}</p><p className="mt-2 text-xs text-slate-400">/backend/health/live – ez nem JWT/RBAC biztonsági teszt.</p></div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-white/10 bg-white/5 p-5">
           <h3 className="text-sm text-slate-400">Authentication / JWT</h3>
-          <p className="mt-2 text-xl font-semibold" role="status">{state === 'loading' ? 'Checking...' : state === 'verified' ? 'Verified' : state === 'signed-out' ? 'Not signed in' : 'Verification unavailable'}</p>
+          <p className="mt-2 text-xl font-semibold" role="status">{state === 'loading' ? 'Checking...' : state === 'verified' ? 'Verified' : state === 'signed-out' ? 'Optional account check' : 'Verification unavailable'}</p>
           <p className="mt-2 text-xs text-slate-400">A fiók hitelesítése a /backend/auth/me API-val történik, nem a token böngészős dekódolásával.</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5">
           <h3 className="text-sm text-slate-400">Role-based access (RBAC)</h3>
-          <p className="mt-2 text-xl font-semibold">{account ? account.role : 'Not verified'}</p>
+          <p className="mt-2 text-xl font-semibold">{account ? account.role : 'Login required for role'}</p>
           <p className="mt-2 text-xs text-slate-400">A szerepkört a backend adja vissza. A jogosultságokat a backend érvényesíti.</p>
         </div>
       </div>
       {account && <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Authenticated account</h3><p className="text-sm text-slate-300">Email: {account.email}</p><p className="text-sm text-slate-300">Account: {account.is_active ? 'Active' : 'Disabled'}</p></div>}
-      {state === 'signed-out' && <p className="text-sm text-amber-200">Jelentkezz be az Agents, RAG vagy MLOps modulban, majd itt ellenőrizd a fiókodat.</p>}
+      {state === 'signed-out' && <p className="text-sm text-amber-200">A publikus státusz bejelentkezés nélkül működik. A saját szerepkör ellenőrzéséhez opcionálisan jelentkezz be.</p>}
       {state === 'error' && <p className="text-sm text-amber-200">{message}. Ez nem bizonyítja, hogy a fiók érvénytelen.</p>}
       <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="font-semibold">Security scope</h3><p className="mt-2 text-sm text-slate-400">A felület nem jelenít meg jelszót, hozzáférési tokent vagy refresh tokent. Auditnaplók, MFA és penetrációs tesztek állapota itt még nincs ellenőrizve.</p></div>
     </section>
