@@ -123,3 +123,6 @@ app.include_router(model_registry_router)
 
 from api.experiments import router as experiments_router
 app.include_router(experiments_router)
+
+from api.training import router as training_router
+app.include_router(training_router)
