@@ -1,5 +1,7 @@
 """Bounded, reproducible synthetic regression training for MLOps experiments."""
 from datetime import datetime, timezone
+import os
+import re
 from time import perf_counter
 from uuid import UUID
 
@@ -38,11 +40,14 @@ async def train_regression(
     if experiment is None:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
+    revision = os.getenv('RENDER_GIT_COMMIT', '')
+    revision = revision if re.fullmatch(r'[a-fA-F0-9]{40}', revision) else None
     started = perf_counter()
     run = MLExperimentRun(
         experiment_id=experiment_id,
         created_by=str(user.id),
         status="running",
+        git_commit_sha=revision,
         started_at=datetime.now(timezone.utc),
         dataset_version=f"synthetic-linear-v1-seed-{config.seed}",
         hyperparameters={**config.model_dump(), "algorithm": "numpy_gradient_descent", "dataset": "synthetic"},
