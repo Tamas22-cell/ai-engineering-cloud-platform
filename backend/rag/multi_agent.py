@@ -93,7 +93,7 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
             state["answer"],
         ))
         cited_evidence = "\n".join(
-            str(documents[int(ref) - 1].get("text", ""))
+            (str(documents[int(ref) - 1].get("text", "")) + "\n" + str(documents[int(ref) - 1].get("source", "")))
             for ref in cited if ref in valid
         )
         if verified and any(identifier not in cited_evidence for identifier in identifiers):
