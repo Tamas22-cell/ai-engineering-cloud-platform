@@ -144,7 +144,7 @@ export default function HomePage() {
             <ObservabilityView telemetry={ragTelemetry} auth={auth} />
           )}
           {active === 'security' && (
-            <Placeholder title="Security Dashboard" phase="Phase 1 / 5" />
+            <SecurityView auth={auth} setAuth={setAuth} />
           )}
           {active === 'skills' && <SkillsView />}
         </main>
@@ -622,6 +622,82 @@ function InfrastructureView() {
           <a className="text-cyan-300 underline" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Render databases</a>
         </div>
       </div>
+    </section>
+  );
+}
+
+type SecurityAccount = { id: string; email: string; role: string; is_active: boolean };
+
+function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (value: SharedAuth | null) => void }) {
+  const [account, setAccount] = useState<SecurityAccount | null>(null);
+  const [state, setState] = useState<'loading' | 'signed-out' | 'verified' | 'error'>('loading');
+  const [message, setMessage] = useState('');
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!auth) { setAccount(null); setState('signed-out'); return; }
+    const initialAuth = auth;
+    async function load() {
+      setState('loading');
+      setMessage('');
+      try {
+        let current = initialAuth;
+        let res = await fetch('/backend/auth/me', { headers: { Authorization: `Bearer ${current.access_token}` }, cache: 'no-store' });
+        if (res.status === 401 && current.refresh_token) {
+          const rotated = await fetch('/backend/auth/refresh', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: current.refresh_token }),
+          });
+          if (rotated.ok) {
+            const tokens = await rotated.json() as SharedAuth;
+            current = tokens;
+            if (!cancelled) setAuth(tokens);
+            res = await fetch('/backend/auth/me', { headers: { Authorization: `Bearer ${tokens.access_token}` }, cache: 'no-store' });
+          } else if (rotated.status === 401) {
+            if (!cancelled) { setAuth(null); setAccount(null); setState('signed-out'); }
+            return;
+          } else {
+            throw new Error('Session refresh unavailable');
+          }
+        }
+        if (res.status === 401) {
+          if (!cancelled) { setAuth(null); setAccount(null); setState('signed-out'); }
+          return;
+        }
+        if (!res.ok) throw new Error(`Account verification failed (HTTP ${res.status})`);
+        const user = await res.json() as SecurityAccount;
+        if (!cancelled) { setAccount(user); setState('verified'); }
+      } catch (err) {
+        if (!cancelled) { setAccount(null); setState('error'); setMessage(err instanceof Error ? err.message : 'Network error'); }
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [auth, refresh, setAuth]);
+
+  return (
+    <section className="max-w-4xl space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="text-xl font-semibold">Security & Access</h2><p className="text-sm text-slate-400">Hitelesített felhasználói fiók és szerveroldali jogosultságok.</p></div>
+        <button type="button" onClick={() => setRefresh(n => n + 1)} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200">Újraellenőrzés</button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+          <h3 className="text-sm text-slate-400">Authentication / JWT</h3>
+          <p className="mt-2 text-xl font-semibold" role="status">{state === 'loading' ? 'Checking...' : state === 'verified' ? 'Verified' : state === 'signed-out' ? 'Not signed in' : 'Verification unavailable'}</p>
+          <p className="mt-2 text-xs text-slate-400">A fiók hitelesítése a /backend/auth/me API-val történik, nem a token böngészős dekódolásával.</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+          <h3 className="text-sm text-slate-400">Role-based access (RBAC)</h3>
+          <p className="mt-2 text-xl font-semibold">{account ? account.role : 'Not verified'}</p>
+          <p className="mt-2 text-xs text-slate-400">A szerepkört a backend adja vissza. A jogosultságokat a backend érvényesíti.</p>
+        </div>
+      </div>
+      {account && <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Authenticated account</h3><p className="text-sm text-slate-300">Email: {account.email}</p><p className="text-sm text-slate-300">Account: {account.is_active ? 'Active' : 'Disabled'}</p></div>}
+      {state === 'signed-out' && <p className="text-sm text-amber-200">Jelentkezz be az Agents, RAG vagy MLOps modulban, majd itt ellenőrizd a fiókodat.</p>}
+      {state === 'error' && <p className="text-sm text-amber-200">{message}. Ez nem bizonyítja, hogy a fiók érvénytelen.</p>}
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="font-semibold">Security scope</h3><p className="mt-2 text-sm text-slate-400">A felület nem jelenít meg jelszót, hozzáférési tokent vagy refresh tokent. Auditnaplók, MFA és penetrációs tesztek állapota itt még nincs ellenőrizve.</p></div>
     </section>
   );
 }
