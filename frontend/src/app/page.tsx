@@ -138,7 +138,7 @@ export default function HomePage() {
             <DevOpsView />
           )}
           {active === 'infra' && (
-            <Placeholder title="Cloud Infrastructure" phase="Phase 5" />
+            <InfrastructureView />
           )}
           {active === 'observability' && (
             <ObservabilityView telemetry={ragTelemetry} auth={auth} />
@@ -561,6 +561,65 @@ function DevOpsView() {
           <a className="text-cyan-300 underline" href="https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
           <a className="text-cyan-300 underline" href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">Vercel deployments</a>
           <a className="text-cyan-300 underline" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Render dashboard</a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function InfrastructureView() {
+  const [api, setApi] = useState<'checking' | 'online' | 'unreachable'>('checking');
+  const [db, setDb] = useState('Checking...');
+  const [checkedAt, setCheckedAt] = useState('');
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      setApi('checking');
+      setDb('Checking...');
+      try {
+        const live = await fetch('/backend/health/live', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+        if (!live.ok) throw new Error('Backend health check failed');
+        if (cancelled) return;
+        setApi('online');
+        try {
+          const ready = await fetch('/backend/health/ready', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+          const result = await ready.json() as HealthResponse;
+          if (!cancelled) setDb(ready.ok && result.status === 'ready' && result.database === 'connected' ? 'Connected' : 'Not ready');
+        } catch {
+          if (!cancelled) setDb('Unavailable');
+        }
+      } catch {
+        if (!cancelled) { setApi('unreachable'); setDb('Unavailable'); }
+      } finally {
+        if (!cancelled) setCheckedAt(new Date().toLocaleTimeString());
+      }
+    }
+    void check();
+    return () => { cancelled = true; };
+  }, [refresh]);
+
+  return (
+    <section className="max-w-4xl space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="text-xl font-semibold">Cloud Infrastructure</h2><p className="text-sm text-slate-400">Ellenőrizhető szolgáltatásállapotok, biztonságosan, publikus health endpointokon keresztül.</p></div>
+        <button type="button" onClick={() => setRefresh(n => n + 1)} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200">Állapot frissítése</button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Vercel / Frontend</h3><p className="mt-2 text-xl font-semibold">Page loaded</p><p className="mt-2 text-xs text-slate-400">Ez csak az aktuális oldal betöltését igazolja, nem a deployment státuszát.</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Render / FastAPI</h3><p className="mt-2 text-xl font-semibold" role="status">{api === 'checking' ? 'Checking...' : api === 'online' ? 'Online' : 'Unreachable'}</p><p className="mt-2 text-xs text-slate-400">/backend/health/live</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">PostgreSQL</h3><p className="mt-2 text-xl font-semibold" role="status">{db}</p><p className="mt-2 text-xs text-slate-400">/backend/health/ready</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Redis</h3><p className="mt-2 text-xl font-semibold">Not verified</p><p className="mt-2 text-xs text-slate-400">Nincs publikus Redis readiness ellenőrzés. A szolgáltatás állapotát nem találgatjuk.</p></div>
+      </div>
+      <p className="text-xs text-slate-400">{checkedAt ? `Utolsó ellenőrzés: ${checkedAt}` : 'Ellenőrzés folyamatban'}. A hálózati hiba önmagában nem bizonyítja a leállást.</p>
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
+        <h3 className="font-semibold">Szolgáltatói vezérlőpultok</h3>
+        <p className="text-sm text-slate-400">Deployment állapot és infrastruktúra-beállítások a szolgáltatóknál ellenőrizhetők. Titkos API-kulcsokat nem helyezünk a böngészőbe.</p>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <a className="text-cyan-300 underline" href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">Vercel</a>
+          <a className="text-cyan-300 underline" href="https://dashboard.render.com/web/srv-dbi7tqafngtc73ciacu0" target="_blank" rel="noopener noreferrer">Render API</a>
+          <a className="text-cyan-300 underline" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Render databases</a>
         </div>
       </div>
     </section>
