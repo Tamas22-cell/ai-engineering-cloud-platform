@@ -2,6 +2,9 @@
 from datetime import datetime, timezone
 import os
 import re
+import hashlib
+import hmac
+import json
 from time import perf_counter
 from uuid import UUID
 
@@ -78,6 +81,23 @@ async def train_regression(
         rmse = float(np.sqrt(np.mean(residual ** 2)))
         denominator = float(np.sum((y[test] - np.mean(y[test])) ** 2))
         r2 = float(1 - np.sum(residual ** 2) / denominator) if denominator > 0 else 0.0
+        # Portable model artifact persisted in PostgreSQL JSONB (not ephemeral disk).
+        artifact = {
+            "schema_version": 1,
+            "algorithm": "numpy_gradient_descent",
+            "features": ["x"],
+            "target": "y",
+            "parameters": {
+                "weight": float(weight), "bias": float(bias),
+                "input_mean": mean, "input_std": std,
+            },
+        }
+        canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        run.hyperparameters = {
+            **run.hyperparameters,
+            "model_artifact": artifact,
+            "artifact_sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        }
         for name, value in (("mae", mae), ("rmse", rmse), ("r2", r2)):
             db.add(MLExperimentMetric(run_id=run.id, name=name, value=value, step=config.epochs))
         run.status = "completed"
@@ -93,3 +113,32 @@ async def train_regression(
         "metrics": {"mae": mae, "rmse": rmse, "r2": r2},
         "duration_ms": round((perf_counter() - started) * 1000, 2),
     }
+
+
+@router.get("/runs/{run_id}/artifact")
+async def get_training_artifact(
+    run_id: str,
+    user=Depends(require_role("admin", "developer")),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        run_id = str(UUID(run_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid run ID")
+    run = await db.get(MLExperimentRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "completed":
+        raise HTTPException(status_code=409, detail="Training run is not completed")
+    params = run.hyperparameters or {}
+    artifact = params.get("model_artifact")
+    digest = params.get("artifact_sha256")
+    if not isinstance(artifact, dict) or not isinstance(digest, str):
+        raise HTTPException(status_code=404, detail="No stored artifact for this run")
+    canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    actual = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if not hmac.compare_digest(actual, digest):
+        raise HTTPException(status_code=409, detail="Artifact integrity check failed")
+    return {"run_id": run.id, "git_commit_sha": run.git_commit_sha,
+            "dataset_version": run.dataset_version, "artifact": artifact,
+            "sha256": digest}
