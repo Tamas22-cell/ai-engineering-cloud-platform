@@ -162,6 +162,42 @@ async def list_artifact_versions(
             "active_version_id": None, "rollback_supported": False}
 
 
+
+@router.get("/experiments/{experiment_id}/rollback-preview/{target_run_id}")
+async def rollback_preview(
+    experiment_id: str,
+    target_run_id: str,
+    user=Depends(require_role("admin", "developer")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Read-only integrity and ownership preflight; never switches active models."""
+    try:
+        eid, rid = str(UUID(experiment_id)), str(UUID(target_run_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid UUID")
+    if await db.get(MLExperiment, eid) is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    run = await db.get(MLExperimentRun, rid)
+    if run is None or run.experiment_id != eid:
+        raise HTTPException(status_code=404, detail="Run not found in experiment")
+    params = run.hyperparameters or {}
+    artifact, digest = params.get("model_artifact"), params.get("artifact_sha256")
+    checks = {
+        "completed": run.status == "completed",
+        "artifact_present": isinstance(artifact, dict) and isinstance(digest, str),
+        "supported_schema": isinstance(artifact, dict) and artifact.get("schema_version") == 1 and artifact.get("algorithm") == "numpy_gradient_descent",
+        "integrity_ok": False,
+    }
+    if checks["artifact_present"]:
+        try:
+            canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            checks["integrity_ok"] = hmac.compare_digest(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), digest)
+        except (ValueError, TypeError):
+            pass
+    return {"experiment_id": eid, "target_run_id": rid, "checks": checks,
+            "eligible_for_activation_review": all(checks.values()),
+            "active_version_changed": False, "artifact_deployed": False}
+
 @router.get("/runs/{run_id}/artifact")
 async def get_training_artifact(
     run_id: str,
