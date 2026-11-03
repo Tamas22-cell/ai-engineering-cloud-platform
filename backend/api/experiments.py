@@ -139,3 +139,43 @@ async def record_metric(run_id: str, data: MetricCreate, user=Depends(require_ro
     await db.commit()
     await db.refresh(metric)
     return {"id": metric.id, "run_id": rid, "name": metric.name, "value": metric.value, "step": metric.step}
+
+
+@router.get("/runs/{run_id}/staging-readiness")
+async def staging_readiness(run_id: str, db: AsyncSession = Depends(get_db)):
+    """Read-only staging readiness check; does not promote or deploy models."""
+    run = await db.get(MLExperimentRun, valid_id(run_id))
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    experiment = await db.get(MLExperiment, run.experiment_id)
+    if experiment is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    model = await db.get(RegisteredModel, experiment.model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Registered model not found")
+    rows = await db.execute(
+        select(MLExperimentMetric)
+        .where(MLExperimentMetric.run_id == run.id)
+        .order_by(MLExperimentMetric.recorded_at.asc(), MLExperimentMetric.id.asc())
+    )
+    metrics = {}
+    for item in rows.scalars():
+        if item.name.lower() in {"mae", "rmse", "r2"} and isfinite(item.value):
+            metrics[item.name.lower()] = item.value
+    checks = {
+        "completed_run": run.status == "completed",
+        "mae_present": "mae" in metrics,
+        "dataset_version_present": bool(run.dataset_version),
+        "git_commit_present": bool(run.git_commit_sha),
+    }
+    return {
+        "run_id": run.id,
+        "model_id": model.id,
+        "model_name": model.name,
+        "model_version": model.version,
+        "model_stage": model.stage,
+        "metrics": metrics,
+        "checks": checks,
+        "ready_for_staging_review": all(checks.values()),
+        "deployed": False,
+    }

@@ -22,6 +22,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [training, setTraining] = useState(false);
   const [comparing, setComparing] = useState(false);
   const [candidateRun, setCandidateRun] = useState<string | null>(null);
+  const [readiness, setReadiness] = useState<{ ready_for_staging_review: boolean; checks: Record<string, boolean> } | null>(null);
   const [comparison, setComparison] = useState<{ id: string; mae: number; rmse: number | null; r2: number | null }[]>([]);
   const [trainingResult, setTrainingResult] = useState<{ run_id: string; metrics: { mae: number; rmse: number; r2: number } } | null>(null);
   const [datasetVersion, setDatasetVersion] = useState('');
@@ -48,6 +49,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     setTrainingResult(null);
     setComparison([]);
     setCandidateRun(null);
+    setReadiness(null);
     if (!selected) { setRuns([]); setMetrics({}); return; }
     let cancelled = false;
     async function load() {
@@ -203,6 +205,19 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     }
   }
 
+  async function checkStaging(runId: string) {
+    setCandidateRun(runId);
+    setReadiness(null);
+    try {
+      const response = await fetch(`${API}/mlops/experiments/runs/${encodeURIComponent(runId)}/staging-readiness`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Staging API HTTP ${response.status}`);
+      setReadiness(await response.json() as { ready_for_staging_review: boolean; checks: Record<string, boolean> });
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Staging ellenőrzés sikertelen');
+    }
+  }
+
   async function authorizedWrite(path: string, method: 'POST' | 'PATCH', payload: object) {
     if (!auth) throw new Error('Jelentkezz be újra.');
     const submit = (token: string) => fetch(`${API}${path}`, {
@@ -305,8 +320,9 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
               <td className="p-2">{item.r2?.toFixed(4) ?? '—'}</td>
             </tr>)}</tbody>
           </table>
-          <button type="button" onClick={() => setCandidateRun(comparison[0].id)} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200">Best run staging előkészítés</button>
+          <button type="button" onClick={() => void checkStaging(comparison[0].id)} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200">Best run staging előkészítés</button>
           {candidateRun === comparison[0].id && <p className="mt-2 text-xs text-amber-200">Staging jelölt: {candidateRun}. Regisztrált modell: {models.find(m => m.id === experiments.find(e => e.id === selected)?.model_id)?.name ?? 'Nincs találat'}. Ez csak előkészítés, nem modelltelepítés.</p>}
+          {candidateRun === comparison[0].id && readiness && <p className="mt-2 text-xs text-cyan-200">Backend validáció: {readiness.ready_for_staging_review ? 'Staging review kész' : 'Hiányos'} · {Object.entries(readiness.checks).map(([key, ok]) => `${key}: ${ok ? 'OK' : 'HIÁNYZIK'}`).join(' · ')}</p>}
           <p className="mt-2 text-xs text-slate-400">Csak az MAE metrikával rendelkező futások szerepelnek. Az összehasonlítás nem telepít modellt; különböző adatkészletek eredményei nem feltétlenül összevethetők.</p>
         </div>}
         {!comparing && comparison.length === 0 && <p className="text-xs text-slate-500">Kattints a Compare Runs gombra a metrikák betöltéséhez.</p>}
