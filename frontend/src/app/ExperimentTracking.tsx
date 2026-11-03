@@ -19,6 +19,8 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [creatingRun, setCreatingRun] = useState(false);
+  const [busyRun, setBusyRun] = useState<string | null>(null);
+  const [metricInputs, setMetricInputs] = useState<Record<string, { name: string; value: string }>>({});
   const canWrite = !!auth && (role === 'admin' || role === 'developer');
 
   const loadExperiments = useCallback(async () => {
@@ -107,6 +109,57 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     finally { setCreatingRun(false); }
   }
 
+
+  async function authorizedWrite(path: string, method: 'POST' | 'PATCH', payload: object) {
+    if (!auth) throw new Error('Jelentkezz be újra.');
+    const submit = (token: string) => fetch(`${API}${path}`, {
+      method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    let response = await submit(auth.access_token);
+    if (response.status === 401) {
+      const refreshed = await fetch(`${API}/auth/refresh`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: auth.refresh_token }),
+      });
+      if (!refreshed.ok) { setAuth(null); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+      const tokens = await refreshed.json() as Auth;
+      setAuth(tokens);
+      response = await submit(tokens.access_token);
+    }
+    if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+  }
+
+  async function changeStatus(runId: string, status: string) {
+    if (!selected || busyRun) return;
+    setBusyRun(runId); setError('');
+    try {
+      await authorizedWrite(`/mlops/experiments/runs/${encodeURIComponent(runId)}/status`, 'PATCH', { status });
+      const response = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Run API HTTP ${response.status}`);
+      setRuns(await response.json() as Run[]);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Státusz módosítása sikertelen'); }
+    finally { setBusyRun(null); }
+  }
+
+  async function recordRunMetric(runId: string) {
+    if (busyRun) return;
+    const input = metricInputs[runId];
+    const value = Number(input?.value);
+    if (!input?.name.trim() || !input.value.trim() || !Number.isFinite(value)) {
+      setError('Adj meg metrikanevet és érvényes számértéket.'); return;
+    }
+    setBusyRun(runId); setError('');
+    try {
+      await authorizedWrite(`/mlops/experiments/runs/${encodeURIComponent(runId)}/metrics`, 'POST', {
+        name: input.name.trim(), value, step: 0,
+      });
+      setMetricInputs(previous => ({ ...previous, [runId]: { name: '', value: '' } }));
+      await showMetrics(runId);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Metrika mentése sikertelen'); }
+    finally { setBusyRun(null); }
+  }
+
   async function showMetrics(runId: string) {
     try {
       const response = await fetch(`${API}/mlops/experiments/runs/${encodeURIComponent(runId)}/metrics`, { cache: 'no-store' });
@@ -141,6 +194,16 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         <p className="font-medium text-cyan-200">{run.id} · {run.status}</p>
         <p>Dataset: {run.dataset_version || '—'} · Commit: {run.git_commit_sha?.slice(0, 12) || '—'}</p>
         <pre className="overflow-x-auto whitespace-pre-wrap text-slate-300">{JSON.stringify(run.hyperparameters, null, 2)}</pre>
+        {canWrite && <div className="flex flex-wrap gap-2">
+          {(run.status === 'pending' ? ['running', 'cancelled'] : run.status === 'running' ? ['completed', 'failed', 'cancelled'] : []).map(next => (
+            <button key={next} type="button" disabled={busyRun !== null} onClick={() => void changeStatus(run.id, next)} className="rounded border border-white/20 px-2 py-1 disabled:opacity-50">{next}</button>
+          ))}
+        </div>}
+        {canWrite && (run.status === 'pending' || run.status === 'running') && <div className="flex flex-wrap gap-2">
+          <input aria-label="Metrika neve" maxLength={80} value={metricInputs[run.id]?.name ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: e.target.value, value: previous[run.id]?.value ?? '' } }))} placeholder="Metrika neve" className="rounded border border-white/15 bg-[#11151C] p-2" />
+          <input aria-label="Metrika értéke" type="number" step="any" value={metricInputs[run.id]?.value ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: previous[run.id]?.name ?? '', value: e.target.value } }))} placeholder="Érték" className="w-28 rounded border border-white/15 bg-[#11151C] p-2" />
+          <button type="button" disabled={busyRun !== null} onClick={() => void recordRunMetric(run.id)} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">Metrika mentése</button>
+        </div>}
         <button type="button" onClick={() => void showMetrics(run.id)} className="text-cyan-300 underline">Metrikák megjelenítése</button>
         {metrics[run.id] && <div className="space-y-1">{metrics[run.id].length ? metrics[run.id].map(m => <p key={m.id}>{m.name}: {m.value} (step {m.step})</p>) : <p>Még nincs metrika.</p>}</div>}
       </div>)}
