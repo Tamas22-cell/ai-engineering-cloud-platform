@@ -5,6 +5,7 @@ import re
 import hashlib
 import hmac
 import json
+import math
 from time import perf_counter
 from uuid import UUID
 
@@ -142,3 +143,50 @@ async def get_training_artifact(
     return {"run_id": run.id, "git_commit_sha": run.git_commit_sha,
             "dataset_version": run.dataset_version, "artifact": artifact,
             "sha256": digest}
+
+
+class InferenceRequest(BaseModel):
+    values: list[float] = Field(min_length=1, max_length=1000)
+
+
+@router.post("/runs/{run_id}/predict")
+async def predict_from_training_run(
+    run_id: str,
+    request: InferenceRequest,
+    user=Depends(require_role("admin", "developer")),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        run_id = str(UUID(run_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid run ID")
+    run = await db.get(MLExperimentRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "completed":
+        raise HTTPException(status_code=409, detail="Training run is not completed")
+    stored = run.hyperparameters or {}
+    artifact, digest = stored.get("model_artifact"), stored.get("artifact_sha256")
+    if not isinstance(artifact, dict) or not isinstance(digest, str):
+        raise HTTPException(status_code=404, detail="Model artifact not available")
+    try:
+        canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        actual = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        if not hmac.compare_digest(actual, digest):
+            raise HTTPException(status_code=409, detail="Artifact integrity check failed")
+        if artifact.get("schema_version") != 1 or artifact.get("algorithm") != "numpy_gradient_descent":
+            raise HTTPException(status_code=422, detail="Unsupported model artifact")
+        p = artifact["parameters"]
+        weight, bias = float(p["weight"]), float(p["bias"])
+        mean, std = float(p["input_mean"]), float(p["input_std"])
+        if not all(math.isfinite(v) for v in (weight, bias, mean, std)) or std <= 0:
+            raise ValueError("Invalid model parameters")
+        if not all(math.isfinite(v) for v in request.values):
+            raise ValueError("Non-finite input")
+        predictions = [weight * ((v - mean) / std) + bias for v in request.values]
+        if not all(math.isfinite(v) for v in predictions):
+            raise ValueError("Non-finite prediction")
+    except (KeyError, TypeError, ValueError, OverflowError):
+        raise HTTPException(status_code=422, detail="Invalid model artifact or input")
+    return {"run_id": run.id, "artifact_sha256": digest,
+            "predictions": predictions, "count": len(predictions)}
