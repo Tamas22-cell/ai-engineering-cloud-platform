@@ -69,7 +69,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           body: JSON.stringify({ refresh_token: auth.refresh_token }),
         });
         if (!refresh.ok) {
-          setAuth(null);
+          setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous);
           throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
         }
         const tokens = await refresh.json() as Auth;
@@ -115,7 +115,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: auth.refresh_token }),
         });
-        if (!refresh.ok) { setAuth(null); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+        if (!refresh.ok) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
         const tokens = await refresh.json() as Auth;
         setAuth(tokens);
         response = await submit(tokens.access_token);
@@ -144,7 +144,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: auth.refresh_token }),
       });
-      if (!refreshed.ok) { setAuth(null); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+      if (!refreshed.ok) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
       const tokens = await refreshed.json() as Auth;
       setAuth(tokens);
       response = await submit(tokens.access_token);
