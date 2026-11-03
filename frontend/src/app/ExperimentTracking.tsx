@@ -20,6 +20,8 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [loading, setLoading] = useState(false);
   const [creatingRun, setCreatingRun] = useState(false);
   const [training, setTraining] = useState(false);
+  const [comparing, setComparing] = useState(false);
+  const [comparison, setComparison] = useState<{ id: string; mae: number; rmse: number | null; r2: number | null }[]>([]);
   const [trainingResult, setTrainingResult] = useState<{ run_id: string; metrics: { mae: number; rmse: number; r2: number } } | null>(null);
   const [datasetVersion, setDatasetVersion] = useState('');
   const [gitCommitSha, setGitCommitSha] = useState('');
@@ -43,6 +45,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
 
   useEffect(() => {
     setTrainingResult(null);
+    setComparison([]);
     if (!selected) { setRuns([]); setMetrics({}); return; }
     let cancelled = false;
     async function load() {
@@ -172,6 +175,32 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     }
   }
 
+  async function compareRuns() {
+    if (!selected || comparing) return;
+    setComparing(true);
+    setError('');
+    setComparison([]);
+    try {
+      const eligible = runs.filter(run => run.status === 'completed').slice(0, 50);
+      const results = await Promise.all(eligible.map(async run => {
+        const response = await fetch(`${API}/mlops/experiments/runs/${encodeURIComponent(run.id)}/metrics`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Metrics API: HTTP ${response.status}`);
+        const data = await response.json() as Metric[];
+        const metric = (name: string) => [...data].reverse().find(item => item.name.toLowerCase() === name)?.value;
+        const mae = metric('mae');
+        if (mae === undefined || !Number.isFinite(mae)) return null;
+        const rmse = metric('rmse');
+        const r2 = metric('r2');
+        return { id: run.id, mae, rmse: rmse !== undefined && Number.isFinite(rmse) ? rmse : null, r2: r2 !== undefined && Number.isFinite(r2) ? r2 : null };
+      }));
+      setComparison(results.filter((item): item is NonNullable<typeof item> => item !== null).sort((a, b) => a.mae - b.mae));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Összehasonlítás sikertelen.');
+    } finally {
+      setComparing(false);
+    }
+  }
+
   async function authorizedWrite(path: string, method: 'POST' | 'PATCH', payload: object) {
     if (!auth) throw new Error('Jelentkezz be újra.');
     const submit = (token: string) => fetch(`${API}${path}`, {
@@ -258,6 +287,26 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       {trainingResult && <div role="status" className="rounded border border-emerald-400/30 p-3 text-sm text-emerald-200">
         Tanítás kész · MAE: {trainingResult.metrics.mae.toFixed(4)} · RMSE: {trainingResult.metrics.rmse.toFixed(4)} · R²: {trainingResult.metrics.r2.toFixed(4)}
       </div>}
+      <div className="space-y-2 rounded-lg border border-white/10 p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => void compareRuns()} disabled={comparing || !runs.some(run => run.status === 'completed')} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{comparing ? 'Összehasonlítás...' : 'Compare Runs'}</button>
+          <span className="text-xs text-slate-400">Befejezett futások rangsora MAE szerint (kisebb a jobb)</span>
+        </div>
+        {comparison.length > 0 && <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead><tr className="border-b border-white/10"><th className="p-2">Rang</th><th className="p-2">Run ID</th><th className="p-2">MAE</th><th className="p-2">RMSE</th><th className="p-2">R²</th></tr></thead>
+            <tbody>{comparison.map((item, index) => <tr key={item.id} className={index === 0 ? 'bg-emerald-400/10' : 'border-t border-white/5'}>
+              <td className="p-2">{index === 0 ? '1 · Best run' : index + 1}</td>
+              <td className="p-2 font-mono">{item.id.slice(0, 12)}…</td>
+              <td className="p-2">{item.mae.toFixed(4)}</td>
+              <td className="p-2">{item.rmse?.toFixed(4) ?? '—'}</td>
+              <td className="p-2">{item.r2?.toFixed(4) ?? '—'}</td>
+            </tr>)}</tbody>
+          </table>
+          <p className="mt-2 text-xs text-slate-400">Csak az MAE metrikával rendelkező futások szerepelnek. Az összehasonlítás nem telepít modellt; különböző adatkészletek eredményei nem feltétlenül összevethetők.</p>
+        </div>}
+        {!comparing && comparison.length === 0 && <p className="text-xs text-slate-500">Kattints a Compare Runs gombra a metrikák betöltéséhez.</p>}
+      </div>
       {canWrite && <div className="space-y-3 rounded-lg border border-white/10 bg-black/20 p-3">
         <p className="text-sm font-medium text-slate-100">Új futás adatai</p>
         <div className="grid gap-2 sm:grid-cols-2">
