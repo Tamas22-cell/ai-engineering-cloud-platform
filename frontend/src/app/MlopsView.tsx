@@ -57,7 +57,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
             const tokens = await refreshed.json() as AuthResponse;
             if (!cancelled) setAuth(tokens);
             response = await fetchWithTimeout(`${API}/auth/me`, { headers: { Authorization: `Bearer ${tokens.access_token}` }, cache: 'no-store' });
-          } else if (!cancelled) { setAuth(null); return; }
+          } else if (!cancelled) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); return; }
         }
         if (response.ok && !cancelled) setCurrentUser(await response.json() as CurrentUser);
       } catch { /* The manual role check remains available if the API is temporarily offline. */ }
@@ -78,7 +78,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
         body: JSON.stringify({ refresh_token: auth.refresh_token }),
       });
       if (!refreshed.ok) {
-        setAuth(null);
+        setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous);
         throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
       }
       const tokens = (await refreshed.json()) as AuthResponse;
@@ -109,7 +109,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: auth.refresh_token }),
         });
-        if (!refreshed.ok) { setAuth(null); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+        if (!refreshed.ok) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
         const tokens = (await refreshed.json()) as AuthResponse;
         setAuth(tokens);
         response = await request(tokens.access_token);
@@ -132,7 +132,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
   async function logout() {
     // Clear the shared session even when the backend is temporarily unavailable.
     const tokens = auth;
-    setAuth(null);
+    setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous);
     setCurrentUser(null);
     setProfile(null);
     setError('');
@@ -233,7 +233,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: auth.refresh_token }),
         });
-        if (!refreshed.ok) { setAuth(null); throw new Error('A munkamenet lejárt.'); }
+        if (!refreshed.ok) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); throw new Error('A munkamenet lejárt.'); }
         const tokens = await refreshed.json() as AuthResponse;
         setAuth(tokens);
         response = await request(tokens.access_token);
