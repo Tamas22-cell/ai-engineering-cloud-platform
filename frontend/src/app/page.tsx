@@ -637,11 +637,12 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
   useEffect(() => {
     let cancelled = false;
     if (!auth) { setAccount(null); setState('signed-out'); return; }
+    const initialAuth = auth;
     async function load() {
       setState('loading');
       setMessage('');
       try {
-        let current = auth;
+        let current = initialAuth;
         let res = await fetch('/backend/auth/me', { headers: { Authorization: `Bearer ${current.access_token}` }, cache: 'no-store' });
         if (res.status === 401 && current.refresh_token) {
           const rotated = await fetch('/backend/auth/refresh', {
