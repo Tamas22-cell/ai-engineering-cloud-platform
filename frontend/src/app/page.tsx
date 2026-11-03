@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import RagView from './RagView';
 import AgentsView from './AgentsView';
 import MlopsView from './MlopsView';
+import LiveApiObservability from './LiveApiObservability';
 import DataEngineeringView from './DataEngineeringView';
 
 type SharedAuth = { access_token: string; refresh_token: string };
@@ -482,6 +483,7 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
   const steps = ['planner', 'retriever', 'synthesizer', 'reviewer'];
   return <section className="max-w-5xl space-y-5">
     <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5"><h2 className="text-xl font-semibold">Multi-Agent RAG Observability</h2><p className="mt-2 text-sm text-slate-400">A legutóbbi RAG-kérdés valós LangGraph futási adatai ebben a böngészőmunkamenetben. Nincs szimulált telemetria.</p></div>
+    <LiveApiObservability />
     <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
       <h3 className="font-semibold">Agent Monitoring · mentett workflow futások</h3>
       <p className="text-xs text-slate-400">Valós, felhasználóhoz kötött PostgreSQL futási előzmények · automatikus frissítés 30 másodpercenként.</p>
