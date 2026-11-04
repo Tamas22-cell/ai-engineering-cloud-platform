@@ -114,8 +114,6 @@ async def root() -> dict[str, str]:
         "message": "AI Engineering Cloud Platform API",
         "status": "Phase 1",
     }
-
-
 from api.auth import router as auth_router
 app.include_router(auth_router)
 
@@ -134,12 +132,6 @@ app.include_router(rag_documents_router)
 
 from api.rag_index import router as rag_index_router
 app.include_router(rag_index_router)
-
-from api.rag_index import router as rag_index_router
-app.include_router(rag_index_router)
-
-from api.rag_documents import router as rag_documents_router
-app.include_router(rag_documents_router)
 
 from api.model_registry import router as model_registry_router
 app.include_router(model_registry_router)
