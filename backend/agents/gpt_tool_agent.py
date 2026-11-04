@@ -186,7 +186,7 @@ async def call_model(state: MessagesState):
     return {
         "messages": [
             AIMessage(
-                content="\\n".join(texts),
+                content="\n".join(texts),
                 tool_calls=tool_calls,
             )
         ]
@@ -221,7 +221,7 @@ async def run_gpt_tool_agent(message: str):
             for commit in data["latest_commits"]:
                 lines.append(f"- {commit['sha']} | {commit['date']} | {commit['message']}")
             lines.append(f"Forrás: {data['source']}")
-            answer = "\\n".join(lines)
+            answer = "\n".join(lines)
         return {"messages": [HumanMessage(content=message),
                              ToolMessage(content=raw, tool_call_id="github-inspection"),
                              AIMessage(content=answer)]}
