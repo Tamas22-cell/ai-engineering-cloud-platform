@@ -2,7 +2,7 @@
 
 import pytest
 
-from agents.gpt_tool_agent import TOOL_DEFINITIONS, run_gpt_tool_agent
+from agents.gpt_tool_agent import TOOLS, TOOL_DEFINITIONS, run_gpt_tool_agent
 from agents.tools.calculator import multiply_numbers
 
 
@@ -11,7 +11,7 @@ def test_multiply_numbers_tool_returns_product():
 
 
 def test_multiply_numbers_is_registered_for_openai_and_langgraph():
-    assert any(tool.name == "multiply_numbers" for tool in __import__("agents.gpt_tool_agent", fromlist=["TOOLS"]).TOOLS)
+    assert any(tool.name == "multiply_numbers" for tool in TOOLS)
     definition = next(item for item in TOOL_DEFINITIONS if item["name"] == "multiply_numbers")
     assert definition["parameters"]["required"] == ["a", "b"]
 
