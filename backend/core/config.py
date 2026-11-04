@@ -21,18 +21,25 @@ class Settings(BaseSettings):
         elif value.startswith("postgresql://"):
             value = "postgresql+asyncpg://" + value[len("postgresql://"):]
 
-        # asyncpg expects the SSL option to be named "ssl", not libpq's
-        # "sslmode". Leaving sslmode in the URL makes asyncpg.connect()
-        # fail with: unexpected keyword argument 'sslmode'.
+        # asyncpg expects "ssl", not libpq's "sslmode". It also does not
+        # support libpq's "channel_binding" URL parameter. Leaving either
+        # parameter in the URL makes SQLAlchemy pass an unsupported keyword
+        # to asyncpg.connect() during application startup.
         parts = urlsplit(value)
         query_items = parse_qsl(parts.query, keep_blank_values=True)
         has_ssl = any(key.lower() == "ssl" for key, _ in query_items)
         normalized_query = []
+
         for key, item_value in query_items:
-            if key.lower() == "sslmode":
+            normalized_key = key.lower()
+            if normalized_key == "sslmode":
                 if not has_ssl:
                     normalized_query.append(("ssl", item_value))
                     has_ssl = True
+            elif normalized_key == "channel_binding":
+                # asyncpg negotiates TLS itself; it has no channel_binding
+                # connect() argument. Drop this libpq-only option.
+                continue
             else:
                 normalized_query.append((key, item_value))
 
