@@ -10,7 +10,7 @@ from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.prebuilt import ToolNode
 
 from agents.llm_client import create_llm_client
-from agents.tools.calculator import add_numbers
+from agents.tools.calculator import add_numbers, multiply_numbers
 
 
 @tool
@@ -69,13 +69,25 @@ async def inspect_project_github() -> str:
         return json.dumps({"error": "GitHub data unavailable", "error_type": type(exc).__name__})
 
 
-TOOLS = [add_numbers, inspect_project_github]
+TOOLS = [add_numbers, multiply_numbers, inspect_project_github]
 
 TOOL_DEFINITIONS = [
     {
         "type": "function",
         "name": "add_numbers",
         "description": "Add two numbers.",
+        "parameters": {
+            "type": "object",
+            "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+            "required": ["a", "b"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+    {
+        "type": "function",
+        "name": "multiply_numbers",
+        "description": "Multiply two numbers. Use this tool for multiplication instead of repeated addition.",
         "parameters": {
             "type": "object",
             "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
@@ -134,6 +146,12 @@ async def call_model(state: MessagesState):
 
     response = await client.responses.create(
         model="gpt-4.1-mini",
+        instructions=(
+            "You are a helpful AI agent with access to tools. "
+            "For arithmetic, select the matching calculator tool and call it once. "
+            "Use multiply_numbers for multiplication and add_numbers for addition. "
+            "After receiving a tool result, provide the final answer without repeating the same call."
+        ),
         input=input_items,
         tools=TOOL_DEFINITIONS,
         max_output_tokens=300,
@@ -168,7 +186,7 @@ async def call_model(state: MessagesState):
     return {
         "messages": [
             AIMessage(
-                content="\n".join(texts),
+                content="\\n".join(texts),
                 tool_calls=tool_calls,
             )
         ]
@@ -203,7 +221,7 @@ async def run_gpt_tool_agent(message: str):
             for commit in data["latest_commits"]:
                 lines.append(f"- {commit['sha']} | {commit['date']} | {commit['message']}")
             lines.append(f"Forrás: {data['source']}")
-            answer = "\n".join(lines)
+            answer = "\\n".join(lines)
         return {"messages": [HumanMessage(content=message),
                              ToolMessage(content=raw, tool_call_id="github-inspection"),
                              AIMessage(content=answer)]}
