@@ -44,7 +44,10 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     try {
       const response = await fetch(`${API}/mlops/experiments`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`Experiment API: HTTP ${response.status}`);
-      setExperiments(await response.json() as Experiment[]);
+      const items = await response.json() as Experiment[];
+      setExperiments(items);
+      // Show Active Model controls immediately when there is only one experiment.
+      setSelected(previous => previous || (items.length === 1 ? items[0].id : ''));
       setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Experiment API nem elérhető'); }
     finally { setLoading(false); }
