@@ -13,6 +13,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeBusy, setActiveBusy] = useState(false);
+  const [activeFeedback, setActiveFeedback] = useState('');
   const [selected, setSelected] = useState('');
   const [runs, setRuns] = useState<Run[]>([]);
   const [metrics, setMetrics] = useState<Record<string, Metric[]>>({});
@@ -58,6 +59,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   useEffect(() => {
     setTrainingResult(null);
     setActiveRunId(null);
+    setActiveFeedback('');
     setPredictResults({});
     setComparison([]);
     setCandidateRun(null);
@@ -314,7 +316,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   async function activeRequest(runId?: string) {
     if (!selected || !auth || activeBusy) return;
     if (runId && (role !== 'admin' || !window.confirm('Aktív modellverzió cseréje? A korábbi verzió visszaállítható.'))) return;
-    setActiveBusy(true); setError('');
+    setActiveBusy(true); setError(''); setActiveFeedback('');
     try {
       const url = `${API}/mlops/training/experiments/${encodeURIComponent(selected)}/active-version${runId ? '/' + encodeURIComponent(runId) : ''}`;
       const submit = (token: string) => fetch(url, {
@@ -333,7 +335,13 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       if (!response.ok) throw new Error(`Active Version API: HTTP ${response.status}`);
       const data = await response.json() as { active_run_id: string | null };
       setActiveRunId(data.active_run_id);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Aktív verzió lekérdezése sikertelen'); }
+      setActiveFeedback(data.active_run_id
+        ? `Aktív modellverzió: ${data.active_run_id}${runId ? ' (sikeresen aktiválva)' : ' (lekérdezve)'}`
+        : 'A lekérdezés sikeres: jelenleg nincs aktív modellverzió.');
+    } catch (e) {
+      setActiveFeedback('');
+      setError(e instanceof Error ? e.message : 'Aktív verzió lekérdezése sikertelen');
+    }
     finally { setActiveBusy(false); }
   }
 
@@ -397,12 +405,14 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     {selected && <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 rounded border border-white/15 p-3 text-xs">
         <span>Aktív modell: {activeRunId ? activeRunId.slice(0, 8) + '…' : 'nincs kiválasztva / még nincs lekérdezve'}</span>
-        <button type="button" disabled={!auth || activeBusy} onClick={() => void activeRequest()} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">Aktív verzió frissítése</button>
+        <button type="button" disabled={!auth || activeBusy} onClick={() => void activeRequest()} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">{activeBusy ? 'Lekérdezés...' : 'Aktív verzió frissítése'}</button>
         {role === 'admin' && <select aria-label="Aktív modell kiválasztása" disabled={activeBusy} value="" onChange={e => { if (e.target.value) void activeRequest(e.target.value); }} className="rounded bg-[#11151C] p-1">
           <option value="">Verzió aktiválása / rollback…</option>
           {runs.filter(run => run.status === 'completed' && !!run.hyperparameters?.model_artifact).map(run => <option key={run.id} value={run.id}>{run.id.slice(0, 8)}{run.id === activeRunId ? ' (aktív)' : ''}</option>)}
         </select>}
       </div>
+      {activeFeedback && <p role="status" aria-live="polite" className="text-xs text-emerald-300">{activeFeedback}</p>}
+      {!auth && <p className="text-xs text-amber-300">Az aktív modell lekérdezéséhez jelentkezz be.</p>}
       <p className="text-xs text-slate-400">{runs.length} futás (legfeljebb 50)</p>
       {canWrite && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-cyan-400/20 bg-black/20 p-3">
         <button type="button" disabled={training} onClick={() => void trainModel()} className="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">{training ? 'Tanítás folyamatban...' : 'Train Model'}</button>
