@@ -2,7 +2,18 @@
 
 import pytest
 
-from agents.gpt_tool_agent import run_gpt_tool_agent
+from agents.gpt_tool_agent import TOOL_DEFINITIONS, run_gpt_tool_agent
+from agents.tools.calculator import multiply_numbers
+
+
+def test_multiply_numbers_tool_returns_product():
+    assert multiply_numbers.invoke({"a": 1847, "b": 29}) == 53563
+
+
+def test_multiply_numbers_is_registered_for_openai_and_langgraph():
+    assert any(tool.name == "multiply_numbers" for tool in __import__("agents.gpt_tool_agent", fromlist=["TOOLS"]).TOOLS)
+    definition = next(item for item in TOOL_DEFINITIONS if item["name"] == "multiply_numbers")
+    assert definition["parameters"]["required"] == ["a", "b"]
 
 
 @pytest.mark.asyncio
