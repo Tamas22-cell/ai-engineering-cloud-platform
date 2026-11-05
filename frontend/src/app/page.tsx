@@ -518,6 +518,8 @@ function DevOpsView() {
   const [database, setDatabase] = useState('Checking...');
   const [checkedAt, setCheckedAt] = useState('');
   const [refresh, setRefresh] = useState(0);
+  const [ciRuns, setCiRuns] = useState<CiRun[]>([]);
+  const [ciStatus, setCiStatus] = useState<'loading' | 'available' | 'unavailable'>('loading');
 
   useEffect(() => {
     let cancelled = false;
@@ -545,6 +547,27 @@ function DevOpsView() {
     return () => { cancelled = true; };
   }, [refresh]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setCiStatus('loading');
+    async function loadCiRuns() {
+      try {
+        const response = await fetch('https://api.github.com/repos/Tamas22-cell/ai-engineering-cloud-platform/actions/runs?per_page=5', {
+          headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+          cache: 'no-store',
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!response.ok) throw new Error(`GitHub API HTTP ${response.status}`);
+        const data = await response.json() as CiRunsResponse;
+        if (!cancelled) { setCiRuns(data.workflow_runs ?? []); setCiStatus('available'); }
+      } catch {
+        if (!cancelled) { setCiRuns([]); setCiStatus('unavailable'); }
+      }
+    }
+    void loadCiRuns();
+    return () => { cancelled = true; };
+  }, [refresh]);
+
   return (
     <section className="max-w-4xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -557,10 +580,23 @@ function DevOpsView() {
       </div>
       <p className="text-xs text-slate-400">{checkedAt ? `Utolsó ellenőrzés: ${checkedAt}` : 'Ellenőrzés folyamatban'}. A hálózati hiba nem bizonyítja, hogy a szolgáltatás leállt.</p>
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
-        <h3 className="font-semibold">CI/CD és deployment</h3>
-        <p className="text-sm text-slate-400">A GitHub Actions és Vercel aktuális buildállapotát a szolgáltatók saját felülete mutatja. Itt nem jelenítünk meg nem ellenőrzött sikeres státuszt.</p>
-        <div className="flex flex-wrap gap-4 text-sm">
-          <a className="text-cyan-300 underline" href="https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-semibold">GitHub Actions · legutóbbi buildfutások</h3>
+          <a className="text-sm text-cyan-300 underline" href="https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions" target="_blank" rel="noopener noreferrer">Összes futás megnyitása</a>
+        </div>
+        <p className="text-xs text-slate-400" role="status">{ciStatus === 'loading' ? 'CI-állapot betöltése…' : ciStatus === 'available' ? 'GitHubtól lekért, valós workflow-adatok.' : 'A GitHub Actions állapota most nem kérdezhető le.'}</p>
+        {ciRuns.length > 0 && <div className="divide-y divide-white/10 rounded-lg border border-white/10">
+          {ciRuns.map(run => {
+            const label = run.status === 'completed' ? (run.conclusion === 'success' ? 'Sikeres' : run.conclusion === 'failure' ? 'Sikertelen' : run.conclusion ?? 'Befejeződött') : run.status === 'in_progress' ? 'Fut' : run.status;
+            const tone = run.status !== 'completed' ? 'text-cyan-200' : run.conclusion === 'success' ? 'text-emerald-300' : 'text-amber-300';
+            return <a key={run.id} href={run.html_url} target="_blank" rel="noopener noreferrer" className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm hover:bg-white/5">
+              <span><span className="font-medium">{run.name}</span><span className="ml-2 text-xs text-slate-400">{run.head_sha.slice(0, 7)} · {new Date(run.created_at).toLocaleString('hu-HU')}</span></span>
+              <span className={`text-xs ${tone}`}>{label}</span>
+            </a>;
+          })}
+        </div>}
+        {ciStatus === 'available' && ciRuns.length === 0 && <p className="text-sm text-slate-400">Még nincs megjeleníthető workflow-futás.</p>}
+        <div className="flex flex-wrap gap-4 border-t border-white/10 pt-3 text-sm">
           <a className="text-cyan-300 underline" href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">Vercel deployments</a>
           <a className="text-cyan-300 underline" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Render dashboard</a>
         </div>
@@ -629,6 +665,8 @@ function InfrastructureView() {
 }
 
 type SecurityAccount = { id: string; email: string; role: string; is_active: boolean };
+type CiRun = { id: number; name: string; status: string; conclusion: string | null; html_url: string; head_sha: string; created_at: string };
+type CiRunsResponse = { workflow_runs?: CiRun[] };
 
 function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (value: SharedAuth | null) => void }) {
   const [account, setAccount] = useState<SecurityAccount | null>(null);
