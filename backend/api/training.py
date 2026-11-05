@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,19 @@ class TrainingRequest(BaseModel):
     seed: int = Field(default=42, ge=0, le=2_147_483_647)
     learning_rate: float = Field(default=0.05, gt=0, le=0.2)
     epochs: int = Field(default=200, ge=10, le=1000)
+    x_values: list[float] | None = Field(default=None, min_length=50, max_length=2000)
+    y_values: list[float] | None = Field(default=None, min_length=50, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_uploaded_dataset(self):
+        if (self.x_values is None) != (self.y_values is None):
+            raise ValueError("x_values and y_values must be provided together")
+        if self.x_values is not None:
+            if len(self.x_values) != len(self.y_values or []):
+                raise ValueError("x_values and y_values must have equal lengths")
+            if not all(math.isfinite(value) for value in self.x_values + (self.y_values or [])):
+                raise ValueError("Dataset values must be finite numbers")
+        return self
 
 
 @router.post("/experiments/{experiment_id}/run", status_code=201)
@@ -49,6 +62,16 @@ async def train_regression(
 
     revision = os.getenv('RENDER_GIT_COMMIT', '')
     revision = revision if re.fullmatch(r'[a-fA-F0-9]{40}', revision) else None
+    dataset_source = "uploaded_csv" if config.x_values is not None else "synthetic"
+    if config.x_values is not None and config.y_values is not None:
+        dataset_payload = json.dumps(
+            list(zip(config.x_values, config.y_values)),
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        dataset_version = "uploaded-linear-v1-" + hashlib.sha256(dataset_payload.encode("utf-8")).hexdigest()[:16]
+    else:
+        dataset_version = f"synthetic-linear-v1-seed-{config.seed}"
     started = perf_counter()
     run = MLExperimentRun(
         experiment_id=experiment_id,
@@ -56,17 +79,26 @@ async def train_regression(
         status="running",
         git_commit_sha=revision,
         started_at=datetime.now(timezone.utc),
-        dataset_version=f"synthetic-linear-v1-seed-{config.seed}",
-        hyperparameters={**config.model_dump(), "algorithm": "numpy_gradient_descent", "dataset": "synthetic"},
+        dataset_version=dataset_version,
+        hyperparameters={
+            **config.model_dump(exclude={"x_values", "y_values"}),
+            "algorithm": "numpy_gradient_descent",
+            "dataset": dataset_source,
+        },
     )
     db.add(run)
     await db.flush()
     try:
         rng = np.random.default_rng(config.seed)
-        x = rng.normal(size=config.samples)
-        y = 2.5 * x + 0.7 + rng.normal(scale=config.noise, size=config.samples)
-        indices = rng.permutation(config.samples)
-        cutoff = int(config.samples * 0.8)
+        if config.x_values is not None and config.y_values is not None:
+            x = np.asarray(config.x_values, dtype=np.float64)
+            y = np.asarray(config.y_values, dtype=np.float64)
+        else:
+            x = rng.normal(size=config.samples)
+            y = 2.5 * x + 0.7 + rng.normal(scale=config.noise, size=config.samples)
+        sample_count = int(x.size)
+        indices = rng.permutation(sample_count)
+        cutoff = int(sample_count * 0.8)
         train, test = indices[:cutoff], indices[cutoff:]
         # Standardized inputs keep bounded gradient descent stable.
         mean, std = float(x[train].mean()), float(x[train].std())
@@ -112,8 +144,8 @@ async def train_regression(
         raise
     return {
         "run_id": run.id, "experiment_id": experiment_id, "status": run.status,
-        "dataset": "synthetic", "train_samples": cutoff,
-        "test_samples": config.samples - cutoff,
+        "dataset": dataset_source, "train_samples": cutoff,
+        "test_samples": sample_count - cutoff,
         "metrics": {"mae": mae, "rmse": rmse, "r2": r2},
         "duration_ms": round((perf_counter() - started) * 1000, 2),
     }
