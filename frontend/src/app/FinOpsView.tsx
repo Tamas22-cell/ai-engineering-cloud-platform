@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 
 type Auth = { access_token: string; refresh_token: string };
-type FinOpsStatus = { pricing_configured: boolean; pricing_model: string; provider_billing_connected: boolean };
+type FinOpsStatus = { pricing_configured: boolean; pricing_model: string; vercel_billing_configured: boolean; render_billing_connected: boolean };
+type CloudBilling = { totals: Array<{ currency: string; billed_cost: string }>; services: Array<{ service: string; currency: string; billed_cost: string }>; window_days: number };
 type UsageReport = {
   window_days: number;
   source: string;
@@ -20,6 +21,9 @@ type UsageReport = {
 export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; onNavigate: (page: string) => void }) {
   const [report, setReport] = useState<UsageReport | null>(null);
   const [finopsStatus, setFinopsStatus] = useState<FinOpsStatus | null>(null);
+  const [cloudBilling, setCloudBilling] = useState<CloudBilling | null>(null);
+  const [cloudBillingError, setCloudBillingError] = useState('');
+  const [cloudBillingLoading, setCloudBillingLoading] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -67,12 +71,35 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       <div className="grid gap-3 md:grid-cols-3">
         <CoverageCard title="Mért használat" status="Aktív" detail="Egy- és többügynökös RAG-válaszok OpenAI tokenjei" tone="green" />
         <CoverageCard title="Tokenköltség" status={finopsStatus?.pricing_configured ? "Árazás aktív" : finopsStatus ? "Árbeállítás szükséges" : "Állapot betöltése"} detail="gpt-4.1-mini · OpenAI standard tokenárak alapján" tone={finopsStatus?.pricing_configured ? "green" : "amber"} />
-        <CoverageCard title="Cloud-számla" status="Nincs bekötve" detail="Szolgáltatói számlázási API-hozzáférés nélkül nem olvasható be" tone="amber" />
+        <CoverageCard title="Cloud-számla" status={finopsStatus?.vercel_billing_configured ? "Vercel API aktív" : finopsStatus ? "Vercel API-token kell" : "Állapot betöltése"} detail="A Vercel költség adminból lekérhető; Render számlázást a jelenlegi API nem adja ki" tone={finopsStatus?.vercel_billing_configured ? "green" : "amber"} />
       </div>
       <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300">
         <strong className="text-cyan-200">Mit mér ez az oldal?</strong>
         <p className="mt-1">Sikeres, bejelentkezett RAG-válaszgenerálások tényleges tokenhasználatát az elmúlt 30 napból. Az embedding-hívások és a szolgáltatói infrastruktúra költségei külön mérés nélkül nem jelennek meg itt.</p>
       </div>
+      {auth && <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="font-semibold">Vercel számlázási adatok · admin</h3><p className="mt-1 text-xs text-slate-400">Az elmúlt 30 nap FOCUS költségei. A Render számlázása külön nincs API-kapcsolaton.</p></div>
+          <button type="button" disabled={cloudBillingLoading} onClick={async () => {
+            setCloudBillingLoading(true); setCloudBillingError(''); setCloudBilling(null);
+            try {
+              const response = await fetch('/backend/finops/cloud-billing', { cache: 'no-store', headers: { Authorization: 'Bearer ' + auth.access_token }, signal: AbortSignal.timeout(30000) });
+              if (!response.ok) {
+                if (response.status === 403) throw new Error('Ehhez a kimutatáshoz admin jogosultság kell.');
+                if (response.status === 503) throw new Error('A Vercel API-token még nincs beállítva a backend környezetében.');
+                throw new Error('A Vercel számlázási API ' + response.status + ' hibát adott.');
+              }
+              setCloudBilling(await response.json() as CloudBilling);
+            } catch (err) { setCloudBillingError(err instanceof Error ? err.message : 'A számlázási adatok nem érhetők el.'); }
+            finally { setCloudBillingLoading(false); }
+          }} className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{cloudBillingLoading ? 'Lekérés…' : 'Vercel-költségek lekérése'}</button>
+        </div>
+        {cloudBillingError && <p role="alert" className="mt-3 text-sm text-amber-200">{cloudBillingError}</p>}
+        {cloudBilling && <div className="mt-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">{cloudBilling.totals.map(total => <Metric key={total.currency} label={'Vercel · ' + cloudBilling.window_days + ' nap · ' + total.currency} value={new Intl.NumberFormat('en-US', { style: 'currency', currency: total.currency, maximumFractionDigits: 4 }).format(Number(total.billed_cost) || 0)} />)}</div>
+          <div className="space-y-2">{cloudBilling.services.map((row, index) => <div key={row.service + '-' + row.currency + '-' + index} className="flex justify-between gap-4 border-t border-white/10 py-2 text-sm"><span>{row.service} · {row.currency}</span><span>{Number(row.billed_cost).toFixed(4)}</span></div>)}</div>
+        </div>}
+      </div>}
       {!auth && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-amber-200"><span>A személyes kimutatás megtekintéséhez jelentkezz be.</span><button type="button" onClick={() => onNavigate('agents')} className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950 hover:bg-amber-200">Belépés az Agents oldalon</button></div>}
       {loading && <p className="text-sm text-slate-400">Használati adatok betöltése…</p>}
       {error && <div role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/5 p-4 text-sm text-rose-200">{error}</div>}
