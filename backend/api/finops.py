@@ -41,6 +41,10 @@ async def get_cloud_billing(user=Depends(get_current_user)):
     """Fetch the last 30 days of Vercel FOCUS charges for admins only."""
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
+    return await fetch_vercel_billing()
+
+
+async def fetch_vercel_billing():
     token = os.getenv("VERCEL_ACCESS_TOKEN", "").strip()
     if token.lower().startswith("bearer "):
         token = token[7:].strip()
