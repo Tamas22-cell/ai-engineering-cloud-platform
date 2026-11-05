@@ -1,0 +1,62 @@
+# Kubernetes deployment template (backend only)
+# Replace the image and create a secret before applying. Do not commit credentials.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-engineering-api
+  labels:
+    app: ai-engineering-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-engineering-api
+  template:
+    metadata:
+      labels:
+        app: ai-engineering-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/REPLACE_OWNER/ai-engineering-cloud-platform:REPLACE_TAG
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: ai-engineering-api-secrets
+          env:
+            - name: ENVIRONMENT
+              value: production
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-engineering-api
+spec:
+  selector:
+    app: ai-engineering-api
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
