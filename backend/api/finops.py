@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import os
 import json
 from collections import defaultdict
@@ -87,7 +87,7 @@ async def get_cloud_billing(user=Depends(get_current_user)):
         }
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=502, detail="Vercel billing API rejected the configured token or team scope") from exc
-    except (httpx.HTTPError, json.JSONDecodeError, Decimal.InvalidOperation, ValueError) as exc:
+    except (httpx.HTTPError, json.JSONDecodeError, InvalidOperation, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Vercel billing data could not be read") from exc
 
 
