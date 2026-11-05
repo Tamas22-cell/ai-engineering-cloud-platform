@@ -5,6 +5,7 @@ import json
 from collections import defaultdict
 
 import httpx
+import structlog
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import text
@@ -14,6 +15,7 @@ from core.database import get_db
 from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/finops", tags=["FinOps"])
+logger = structlog.get_logger()
 
 
 @router.get("/status")
@@ -39,8 +41,10 @@ async def get_cloud_billing(user=Depends(get_current_user)):
     """Fetch the last 30 days of Vercel FOCUS charges for admins only."""
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
-    token = os.getenv("VERCEL_ACCESS_TOKEN")
-    team_id = os.getenv("VERCEL_TEAM_ID")
+    token = os.getenv("VERCEL_ACCESS_TOKEN", "").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    team_id = os.getenv("VERCEL_TEAM_ID", "").strip()
     if not token or not team_id:
         raise HTTPException(status_code=503, detail="Vercel billing connection is not configured")
 
@@ -52,7 +56,7 @@ async def get_cloud_billing(user=Depends(get_current_user)):
         "teamId": team_id,
     }
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=12.0) as client:
             response = await client.get(
                 "https://api.vercel.com/v1/billing/charges",
                 params=params,
@@ -67,7 +71,11 @@ async def get_cloud_billing(user=Depends(get_current_user)):
             if not line.strip():
                 continue
             row = json.loads(line)
-            amount = Decimal(str(row.get("BilledCost") or "0"))
+            if not isinstance(row, dict) or row.get("BilledCost") is None:
+                raise ValueError("Unexpected Vercel billing record")
+            amount = Decimal(str(row["BilledCost"]))
+            if not amount.is_finite():
+                raise ValueError("Invalid billed cost")
             currency = str(row.get("BillingCurrency") or "USD")
             day = str(row.get("ChargePeriodStart") or row.get("BillingPeriodStart") or "")[:10] or "unknown"
             service = str(row.get("ServiceName") or row.get("ServiceCategory") or "Other")[:100]
@@ -98,9 +106,20 @@ async def get_cloud_billing(user=Depends(get_current_user)):
                 "services": [],
                 "render_billing": "not_available_via_connected_api",
             }
-        raise HTTPException(status_code=502, detail="Vercel billing API rejected the configured token or team scope") from exc
-    except (httpx.HTTPError, json.JSONDecodeError, InvalidOperation, ValueError) as exc:
-        raise HTTPException(status_code=502, detail="Vercel billing data could not be read") from exc
+        upstream_status = exc.response.status_code
+        logger.warning("vercel_billing_request_failed", upstream_status=upstream_status)
+        code = {
+            401: "vercel_token_invalid",
+            403: "vercel_billing_forbidden",
+            429: "vercel_rate_limited",
+        }.get(upstream_status, "vercel_billing_unavailable")
+        raise HTTPException(status_code=502, detail={"code": code}) from exc
+    except httpx.TimeoutException as exc:
+        logger.warning("vercel_billing_timeout")
+        raise HTTPException(status_code=504, detail={"code": "vercel_billing_timeout"}) from exc
+    except (httpx.HTTPError, InvalidOperation, ValueError) as exc:
+        logger.warning("vercel_billing_unreadable", error_type=type(exc).__name__)
+        raise HTTPException(status_code=502, detail={"code": "vercel_billing_unreadable"}) from exc
 
 
 
