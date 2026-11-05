@@ -6,7 +6,7 @@ from collections import defaultdict
 
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -102,6 +102,98 @@ async def get_cloud_billing(user=Depends(get_current_user)):
     except (httpx.HTTPError, json.JSONDecodeError, InvalidOperation, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Vercel billing data could not be read") from exc
 
+
+
+@router.get("/render-billing")
+async def list_render_billing_entries(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """List manually recorded Render invoices for admins."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    rows = (await db.execute(text("""
+        SELECT id::text AS id, period_start, amount::text AS amount, currency,
+               invoice_number, note, created_at
+        FROM render_billing_entries
+        ORDER BY period_start DESC, created_at DESC
+    """))).mappings().all()
+    return [{
+        "id": row["id"],
+        "period": row["period_start"].strftime("%Y-%m"),
+        "amount": row["amount"],
+        "currency": row["currency"],
+        "invoice_number": row["invoice_number"],
+        "note": row["note"],
+        "created_at": row["created_at"].isoformat(),
+    } for row in rows]
+
+
+@router.post("/render-billing")
+async def add_render_billing_entry(request: Request, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Record a Render invoice total from the Render Dashboard."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise ValueError("Expected JSON object")
+        period = datetime.strptime(str(payload.get("period", "")), "%Y-%m").date()
+        amount = Decimal(str(payload.get("amount", "")))
+        currency = str(payload.get("currency", "USD")).upper()
+        invoice_number = str(payload.get("invoice_number", "")).strip() or None
+        note = str(payload.get("note", "")).strip() or None
+        if not amount.is_finite() or amount < 0:
+            raise ValueError("Amount must be a non-negative number")
+        if currency not in {"USD", "EUR", "HUF"}:
+            raise ValueError("Currency must be USD, EUR, or HUF")
+        if invoice_number and len(invoice_number) > 100:
+            raise ValueError("Invoice number is too long")
+        if note and len(note) > 500:
+            raise ValueError("Note is too long")
+    except (ValueError, InvalidOperation, TypeError) as exc:
+        raise HTTPException(status_code=422, detail="Enter a valid YYYY-MM period, amount, and supported currency") from exc
+
+    row = (await db.execute(text("""
+        INSERT INTO render_billing_entries
+            (period_start, amount, currency, invoice_number, note, created_by)
+        VALUES (:period_start, :amount, :currency, :invoice_number, :note, :created_by)
+        RETURNING id::text AS id, period_start, amount::text AS amount, currency,
+                  invoice_number, note, created_at
+    """), {
+        "period_start": period,
+        "amount": amount,
+        "currency": currency,
+        "invoice_number": invoice_number,
+        "note": note,
+        "created_by": str(user.id),
+    })).mappings().one()
+    await db.commit()
+    return {
+        "id": row["id"],
+        "period": row["period_start"].strftime("%Y-%m"),
+        "amount": row["amount"],
+        "currency": row["currency"],
+        "invoice_number": row["invoice_number"],
+        "note": row["note"],
+        "created_at": row["created_at"].isoformat(),
+    }
+
+
+@router.delete("/render-billing/{entry_id}")
+async def delete_render_billing_entry(entry_id: str, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Delete a manually recorded Render invoice."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        result = await db.execute(
+            text("DELETE FROM render_billing_entries WHERE id = CAST(:entry_id AS UUID)"),
+            {"entry_id": entry_id},
+        )
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail="Invalid Render invoice entry ID") from exc
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Render invoice entry not found")
+    return {"deleted": True, "id": entry_id}
 
 @router.get("/usage")
 async def get_usage(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
