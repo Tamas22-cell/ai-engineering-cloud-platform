@@ -5,6 +5,16 @@ on:
   pull_request:
   workflow_dispatch:
 jobs:
+  kubernetes-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Kubernetes manifest validator
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz -o /tmp/kubeconform.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+      - name: Validate Kubernetes manifests against API schemas
+        run: /tmp/kubeconform -strict -summary -kubernetes-version 1.30.0 k8s/backend.yaml
   docker-compose-validation:
     runs-on: ubuntu-latest
     steps:
