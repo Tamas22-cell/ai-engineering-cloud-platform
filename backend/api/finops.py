@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -9,6 +10,20 @@ from core.database import get_db
 from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/finops", tags=["FinOps"])
+
+
+@router.get("/status")
+async def get_finops_status():
+    """Expose non-sensitive configuration status so the UI can explain coverage before sign-in."""
+    pricing_configured = bool(
+        os.getenv("OPENAI_INPUT_USD_PER_1M")
+        and os.getenv("OPENAI_OUTPUT_USD_PER_1M")
+    )
+    return {
+        "pricing_configured": pricing_configured,
+        "pricing_model": "gpt-4.1-mini",
+        "provider_billing_connected": False,
+    }
 
 
 @router.get("/usage")
