@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 
 type DocumentItem = { id: string; filename: string; file_size: number; created_at: string };
 type AskResponse = { answer: string; sources: { id: number; source: string; page: number }[]; verified?: boolean; usage?: { model?: string; input_tokens?: number; output_tokens?: number; total_tokens?: number; estimated_cost_usd?: string | null }; step_timings_ms?: Record<string, number> };
@@ -49,7 +49,7 @@ export default function RagView({ onTelemetry, auth, setAuth }: { onTelemetry?: 
   const [message, setMessage] = useState('A privát RAG-hoz jelentkezz be az Agents vagy a RAG oldalon.');
   const [busy, setBusy] = useState(false);
 
-  async function request(path: string, options: RequestInit = {}) {
+  const request = useCallback(async (path: string, options: RequestInit = {}) => {
     if (!auth) throw new Error('Jelentkezz be a RAG oldalon.');
     const headers = new Headers(options.headers);
     headers.set('Authorization', `Bearer ${auth.access_token}`);
@@ -68,20 +68,25 @@ export default function RagView({ onTelemetry, auth, setAuth }: { onTelemetry?: 
       throw new Error(detail);
     }
     return response.json();
-  }
+  }, [auth, setAuth]);
 
-  async function run(action: () => Promise<void>) {
+  const run = useCallback(async (action: () => Promise<void>) => {
     setBusy(true);
     try { await action(); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Ismeretlen hiba történt.'); }
     finally { setBusy(false); }
-  }
+  }, []);
 
-  async function loadDocuments() {
-    const data = await request('/rag/documents');
+  const loadDocuments = useCallback(async () => {
+    const data = await request('/rag/documents') as { documents?: DocumentItem[] };
     setDocuments(Array.isArray(data.documents) ? data.documents : []);
     setMessage('Dokumentumlista betöltve.');
-  }
+  }, [request]);
+
+  useEffect(() => {
+    if (!auth) { setDocuments([]); setAnswer(null); return; }
+    void run(loadDocuments);
+  }, [auth, loadDocuments, run]);
 
   async function upload() {
     if (!file) { setMessage('Először válassz PDF-fájlt.'); return; }
@@ -144,16 +149,17 @@ export default function RagView({ onTelemetry, auth, setAuth }: { onTelemetry?: 
             className="rounded-lg border border-white/20 px-4 py-2 text-sm disabled:opacity-40">Dokumentumok frissítése</button>
         </div>
         <ul className="mt-4 space-y-2 text-sm text-slate-300">
-          {documents.map(doc => <li key={doc.id} className="rounded-lg bg-black/20 p-3">{doc.filename} · {Math.ceil(doc.file_size / 1024)} KB</li>)}
+          {documents.map(doc => <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-black/20 p-3"><span className="break-all">{doc.filename}</span><span className="text-xs text-slate-400">{Math.ceil(doc.file_size / 1024)} KB · {new Date(doc.created_at).toLocaleDateString('hu-HU')}</span></li>)}
         </ul>
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-        <label htmlFor="rag-question" className="font-semibold">Kérdés a dokumentumokról</label>
+        <div className="flex flex-wrap items-center justify-between gap-2"><label htmlFor="rag-question" className="font-semibold">Kérdés a dokumentumokról</label><span className="text-xs text-slate-400">{documents.length} saját dokumentum</span></div>
+        {!documents.length && auth && <p className="text-xs text-amber-200">Tölts fel és indexelj legalább egy PDF-et a kérdezés előtt.</p>}
         <textarea id="rag-question" value={question} maxLength={4000} onChange={e => setQuestion(e.target.value)}
           placeholder="Mit tartalmaznak a feltöltött dokumentumok?" rows={3}
           className="mt-3 w-full rounded-lg border border-white/15 bg-[#101723] p-3 text-sm text-white" />
-        <button type="button" disabled={busy || !auth || !question.trim()} onClick={() => void run(ask)}
+        <button type="button" disabled={busy || !auth || !documents.length || !question.trim()} onClick={() => void run(ask)}
           className="mt-3 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium disabled:opacity-40">Kérdezés</button>
         {answer?.step_timings_ms && <div className="mt-4 rounded-lg border border-cyan-500/20 bg-black/20 p-4"><h4 className="font-semibold text-cyan-300">LangGraph agent futási idők · élő mérés</h4><div className="mt-3 grid grid-cols-2 gap-3">{(['planner','retriever','synthesizer','reviewer'] as const).map(step => <div key={step} className="rounded-lg bg-white/5 p-3"><div className="text-xs uppercase text-slate-400">{step}</div><div className="text-lg font-semibold">{answer.step_timings_ms?.[step] == null ? 'Nincs adat' : `${answer.step_timings_ms[step].toFixed(1)} ms`}</div></div>)}</div><p className="mt-2 text-xs text-slate-400">Mért végrehajtási idők, nem becslések. Tokenek és költség a válasz alatt.</p></div>}
         {answer && <div className="mt-4 space-y-3 rounded-lg bg-black/30 p-4 text-sm text-slate-200"><p className="whitespace-pre-wrap">{answer.answer}</p><p className={answer.verified ? 'text-green-300' : 'text-amber-300'}>{answer.verified ? 'Forráshivatkozások ellenőrizve' : 'Nem igazolt válasz – ellenőrizd a dokumentumokat'}</p>{answer.usage && <p className="text-xs text-cyan-300">AI tokenek · {answer.usage.model ?? "ismeretlen modell"} · bemenet: {answer.usage.input_tokens ?? 0} · kimenet: {answer.usage.output_tokens ?? 0} · összesen: {answer.usage.total_tokens ?? 0}{answer.usage.estimated_cost_usd != null ? ` · becsült költség: ${answer.usage.estimated_cost_usd}` : " · költség nincs konfigurálva"}</p>}<ul className="space-y-1">{(answer.sources ?? []).map(source => <li key={source.id}>[{source.id}] {source.source}, {source.page}. oldal</li>)}</ul></div>}
