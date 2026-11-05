@@ -20,6 +20,32 @@ class RAGAskRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
 
 
+async def _record_usage(db: AsyncSession, user_id: str, usage: dict | None) -> None:
+    """Persist measured completion usage; never fail a valid RAG response."""
+    if not usage or not usage.get("model") or int(usage.get("total_tokens") or 0) <= 0:
+        return
+
+    try:
+        await db.execute(text("""
+            INSERT INTO llm_usage_events
+                (id, user_id, provider, model, input_tokens, output_tokens, estimated_cost_usd, created_at)
+            VALUES
+                (:id, :user_id, 'openai', :model, :input_tokens, :output_tokens, :cost, :created_at)
+        """), {
+            "id": str(uuid4()),
+            "user_id": user_id,
+            "model": str(usage["model"])[:120],
+            "input_tokens": int(usage.get("input_tokens") or 0),
+            "output_tokens": int(usage.get("output_tokens") or 0),
+            "cost": usage.get("estimated_cost_usd"),
+            "created_at": datetime.now(timezone.utc),
+        })
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        # Usage persistence is best-effort and must not discard a valid answer.
+
+
 @router.post("/ask")
 async def ask_document(
     data: RAGAskRequest,
@@ -28,14 +54,14 @@ async def ask_document(
 ):
     try:
         qa = PersistentRAGQuestionAnswering()
-
-        return await qa.ask(
+        result = await qa.ask(
             db=db,
             user_id=str(user.id),
             question=data.question,
             top_k=data.top_k,
         )
-
+        await _record_usage(db, str(user.id), result.get("usage"))
+        return result
     except Exception as exc:
         raise HTTPException(
             status_code=503,
@@ -56,27 +82,7 @@ async def ask_multi_agent_document(
             question=data.question,
             top_k=data.top_k,
         )
-        usage = result.get("usage") or {}
-        if usage.get("model") and int(usage.get("total_tokens") or 0) > 0:
-            try:
-                await db.execute(text("""
-                    INSERT INTO llm_usage_events
-                        (id, user_id, provider, model, input_tokens, output_tokens, estimated_cost_usd, created_at)
-                    VALUES
-                        (:id, :user_id, 'openai', :model, :input_tokens, :output_tokens, :cost, :created_at)
-                """), {
-                    "id": str(uuid4()),
-                    "user_id": str(user.id),
-                    "model": str(usage["model"])[:120],
-                    "input_tokens": int(usage.get("input_tokens") or 0),
-                    "output_tokens": int(usage.get("output_tokens") or 0),
-                    "cost": usage.get("estimated_cost_usd"),
-                    "created_at": datetime.now(timezone.utc),
-                })
-                await db.commit()
-            except Exception:
-                await db.rollback()
-                # Usage persistence is best-effort and must not discard a valid answer.
+        await _record_usage(db, str(user.id), result.get("usage"))
         return result
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Multi-agent RAG unavailable") from exc
