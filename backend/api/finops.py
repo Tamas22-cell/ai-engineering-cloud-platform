@@ -98,7 +98,18 @@ async def fetch_vercel_billing():
             "render_billing": "not_available_via_connected_api",
         }
     except httpx.HTTPStatusError as exc:
-        if exc.response.status_code == 404 and "costs_not_found" in exc.response.text:
+        try:
+            payload = exc.response.json()
+        except ValueError:
+            payload = {}
+        error = payload.get("error", payload) if isinstance(payload, dict) else {}
+        error = error if isinstance(error, dict) else {}
+        error_code = str(error.get("code", "")).strip().lower()
+        error_message = str(error.get("message", exc.response.text)).strip().lower().rstrip(".")
+        if exc.response.status_code == 404 and (
+            error_code == "costs_not_found"
+            or error_message in {"costs not found", "costs_not_found"}
+        ):
             return {
                 "provider": "vercel",
                 "status": "no_charges_returned",
@@ -111,10 +122,15 @@ async def fetch_vercel_billing():
                 "render_billing": "not_available_via_connected_api",
             }
         upstream_status = exc.response.status_code
-        logger.warning("vercel_billing_request_failed", upstream_status=upstream_status)
+        logger.warning(
+            "vercel_billing_request_failed",
+            upstream_status=upstream_status,
+            upstream_code=error_code if error_code in {"not_found", "team_not_found", "forbidden", "unauthorized", "invalid_token"} else "unknown",
+        )
         code = {
             401: "vercel_token_invalid",
             403: "vercel_billing_forbidden",
+            404: "vercel_billing_not_found",
             429: "vercel_rate_limited",
         }.get(upstream_status, "vercel_billing_unavailable")
         raise HTTPException(status_code=502, detail={"code": code}) from exc
