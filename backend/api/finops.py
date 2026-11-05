@@ -52,7 +52,7 @@ async def get_usage(user=Depends(get_current_user), db: AsyncSession = Depends(g
                 "priced_requests": int(row["priced_requests"]),
                 "estimated_cost_usd": str(Decimal(row["priced_cost_usd"])),
             } for row in daily],
-            "note": "Only RAG answer-generation tokens are included. Cost is an estimate and is omitted from coverage when token rates are not configured.",
+            "note": "Measured single-agent and multi-agent RAG answer-generation tokens only. Embeddings and cloud-provider billing are excluded. Cost is an estimate and is omitted when token rates are not configured.",
         }
     except Exception as exc:
         await db.rollback()
