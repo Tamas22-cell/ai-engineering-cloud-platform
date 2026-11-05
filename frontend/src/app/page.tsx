@@ -6,7 +6,7 @@ import RagView from './RagView';
 import AgentsView from './AgentsView';
 import MlopsView from './MlopsView';
 import LiveApiObservability from './LiveApiObservability';
-import DataEngineeringView from './DataEngineeringView';
+import DataEngineeringView from './DataEngineeringView';\nimport FinOpsView from './FinOpsView';
 
 type SharedAuth = { access_token: string; refresh_token: string };
 
@@ -29,7 +29,7 @@ const navItems = [
   { id: 'data', label: 'Data Eng', icon: '🔄' },
   { id: 'devops', label: 'DevOps', icon: '🚀' },
   { id: 'infra', label: 'Infrastructure', icon: '☁️' },
-  { id: 'observability', label: 'Observability', icon: '📊' },
+  { id: 'observability', label: 'Observability', icon: '📊' },\n  { id: 'finops', label: 'FinOps', icon: '💰' },
   { id: 'security', label: 'Security', icon: '🔒' },
   { id: 'skills', label: 'Skills', icon: '🎯' },
 ];
