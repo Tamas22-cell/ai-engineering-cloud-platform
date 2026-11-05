@@ -625,7 +625,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
               {inputDrift[run.id].status === 'drift_detected' ? 'Drift jelzés' : inputDrift[run.id].status === 'within_expected_range' ? 'A minta a beállított tartományon belül' : inputDrift[run.id].status === 'insufficient_data' ? 'Kevés adat a minősítéshez' : inputDrift[run.id].status === 'no_inference_data' ? 'Nincs rögzített inference-adat' : inputDrift[run.id].status}
             </p>
             <p className="mt-1 text-slate-300">{inputDrift[run.id].sample_count} érték · {inputDrift[run.id].batch_count} batch · 30 nap</p>
-            {inputDrift[run.id].mean_shift_in_std !== null && <p className="mt-1 text-slate-400">Átlageltolódás: {inputDrift[run.id].mean_shift_in_std.toFixed(2)} szórás · szórásarány: {inputDrift[run.id].std_ratio?.toFixed(2)} · &gt;3σ érték: {((inputDrift[run.id].outlier_rate ?? 0) * 100).toFixed(1)}%</p>}
+            {inputDrift[run.id].mean_shift_in_std !== null && <p className="mt-1 text-slate-400">Átlageltolódás: {inputDrift[run.id].mean_shift_in_std.toFixed(2)} szórás · szórásarány: {(inputDrift[run.id].std_ratio ?? 0).toFixed(2)} · &gt;3σ érték: {((inputDrift[run.id].outlier_rate ?? 0) * 100).toFixed(1)}%</p>}
             {inputDrift[run.id].signals.length > 0 && <p className="mt-1 text-amber-200">Jelzések: {inputDrift[run.id].signals.join(', ')}</p>}
             <p className="mt-1 text-slate-500">A backend csak aggregált adatot tárol, nyers bemenetet nem. Heurisztikus jelzés, nem minőségi garancia.</p>
           </div>}
