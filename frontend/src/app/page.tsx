@@ -744,6 +744,7 @@ function InfrastructureView() {
 }
 
 type SecurityAccount = { id: string; email: string; role: string; is_active: boolean };
+type SecurityAuditEvent = { id: string; event_type: string; user_id: string | null; ip_address: string | null; created_at: string };
 type CiRun = { id: number; name: string; status: string; conclusion: string | null; html_url: string; head_sha: string; created_at: string };
 type CiRunsResponse = { workflow_runs?: CiRun[] };
 
@@ -753,6 +754,8 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
   const [message, setMessage] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [publicHealth, setPublicHealth] = useState('Checking...');
+  const [auditEvents, setAuditEvents] = useState<SecurityAuditEvent[]>([]);
+  const [auditState, setAuditState] = useState<'hidden' | 'loading' | 'ready' | 'error'>('hidden');
 
   useEffect(() => {
     let cancelled = false;
@@ -771,7 +774,7 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
 
   useEffect(() => {
     let cancelled = false;
-    if (!auth) { setAccount(null); setState('signed-out'); return; }
+    if (!auth) { setAccount(null); setAuditEvents([]); setAuditState('hidden'); setState('signed-out'); return; }
     const initialAuth = auth;
     async function load() {
       setState('loading');
@@ -802,7 +805,29 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
         }
         if (!res.ok) throw new Error(`Account verification failed (HTTP ${res.status})`);
         const user = await res.json() as SecurityAccount;
-        if (!cancelled) { setAccount(user); setState('verified'); }
+        if (cancelled) return;
+        setAccount(user);
+        setState('verified');
+        if (user.role === 'admin') {
+          setAuditState('loading');
+          try {
+            const audit = await fetch('/backend/admin/audit-logs?limit=50', {
+              headers: { Authorization: 'Bearer ' + current.access_token },
+              cache: 'no-store',
+            });
+            if (!audit.ok) throw new Error('Audit log request failed');
+            const payload = await audit.json() as { items?: SecurityAuditEvent[] };
+            if (!cancelled) {
+              setAuditEvents(Array.isArray(payload.items) ? payload.items : []);
+              setAuditState('ready');
+            }
+          } catch {
+            if (!cancelled) setAuditState('error');
+          }
+        } else {
+          setAuditEvents([]);
+          setAuditState('hidden');
+        }
       } catch (err) {
         if (!cancelled) { setAccount(null); setState('error'); setMessage(err instanceof Error ? err.message : 'Network error'); }
       }
@@ -831,9 +856,19 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
         </div>
       </div>
       {account && <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Authenticated account</h3><p className="text-sm text-slate-300">Email: {account.email}</p><p className="text-sm text-slate-300">Account: {account.is_active ? 'Active' : 'Disabled'}</p></div>}
+      {account?.role === 'admin' && <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
+        <div><h3 className="font-semibold">Security audit log</h3><p className="text-xs text-slate-400">Latest 50 events · admin access only</p></div>
+        {auditState === 'loading' && <p role="status" className="text-sm text-slate-400">Loading audit events...</p>}
+        {auditState === 'error' && <p role="alert" className="text-sm text-amber-300">Audit events could not be loaded.</p>}
+        {auditState === 'ready' && (auditEvents.length === 0
+          ? <p className="text-sm text-slate-400">No audit events recorded yet.</p>
+          : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-slate-400"><th className="py-2 pr-4">Time</th><th className="py-2 pr-4">Event</th><th className="py-2">Account ID</th></tr></thead><tbody>
+            {auditEvents.map(event => <tr key={event.id} className="border-t border-white/10"><td className="py-2 pr-4 whitespace-nowrap">{new Date(event.created_at).toLocaleString()}</td><td className="py-2 pr-4">{event.event_type}</td><td className="py-2 font-mono text-xs">{event.user_id || '—'}</td></tr>)}
+          </tbody></table></div>)}
+      </div>}
       {state === 'signed-out' && <p className="text-sm text-amber-200">A publikus státusz bejelentkezés nélkül működik. A saját szerepkör ellenőrzéséhez opcionálisan jelentkezz be.</p>}
       {state === 'error' && <p className="text-sm text-amber-200">{message}. Ez nem bizonyítja, hogy a fiók érvénytelen.</p>}
-      <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="font-semibold">Security scope</h3><p className="mt-2 text-sm text-slate-400">A felület nem jelenít meg jelszót, hozzáférési tokent vagy refresh tokent. Auditnaplók, MFA és penetrációs tesztek állapota itt még nincs ellenőrizve.</p></div>
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="font-semibold">Security scope</h3><p className="mt-2 text-sm text-slate-400">A felület nem jelenít meg jelszót, hozzáférési tokent vagy refresh tokent. A bejelentkezési auditnapló adminoknak elérhető; MFA és penetrációs teszt még nincs beállítva/igazolva.</p></div>
     </section>
   );
 }
