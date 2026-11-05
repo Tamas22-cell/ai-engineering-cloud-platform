@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.health import router as health_router
 from core.config import settings
 from core.langfuse_tracing import configure_langfuse
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 logger = structlog.get_logger()
 
@@ -64,6 +65,8 @@ app = FastAPI(
     description="Phase 1: Auth, Database, Health, Dashboard Backend",
     lifespan=lifespan,
 )
+
+FastAPIInstrumentor.instrument_app(app, excluded_urls="health/(live|ready|integrations)")
 
 
 @app.middleware("http")
