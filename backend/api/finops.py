@@ -66,6 +66,16 @@ async def fetch_vercel_billing():
                 params=params,
                 headers={"Authorization": f"Bearer {token}", "Accept-Encoding": "gzip"},
             )
+            if response.status_code == 404 and "costs_not_found" not in response.text.lower():
+                for name, url in (
+                    ("identity", "https://api.vercel.com/v2/user"),
+                    ("team", f"https://api.vercel.com/v2/teams/{team_id}"),
+                ):
+                    try:
+                        probe = await client.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=4.0)
+                        logger.info("vercel_billing_access_check", check=name, status=probe.status_code)
+                    except httpx.HTTPError:
+                        logger.warning("vercel_billing_access_check", check=name, status="unreachable")
             response.raise_for_status()
         totals = defaultdict(Decimal)
         daily = defaultdict(Decimal)
