@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 type Auth = { access_token: string; refresh_token: string };
 type FinOpsStatus = { pricing_configured: boolean; pricing_model: string; vercel_billing_configured: boolean; render_billing_connected: boolean };
-type CloudBilling = { totals: Array<{ currency: string; billed_cost: string }>; services: Array<{ service: string; currency: string; billed_cost: string }>; window_days: number };
+type CloudBilling = { status?: string; totals: Array<{ currency: string; billed_cost: string }>; services: Array<{ service: string; currency: string; billed_cost: string }>; window_days: number };
 type UsageReport = {
   window_days: number;
   source: string;
@@ -71,7 +71,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       <div className="grid gap-3 md:grid-cols-3">
         <CoverageCard title="Mért használat" status="Aktív" detail="Egy- és többügynökös RAG-válaszok OpenAI tokenjei" tone="green" />
         <CoverageCard title="Tokenköltség" status={finopsStatus?.pricing_configured ? "Árazás aktív" : finopsStatus ? "Árbeállítás szükséges" : "Állapot betöltése"} detail="gpt-4.1-mini · OpenAI standard tokenárak alapján" tone={finopsStatus?.pricing_configured ? "green" : "amber"} />
-        <CoverageCard title="Cloud-számla" status={finopsStatus?.vercel_billing_configured ? "Vercel API aktív" : finopsStatus ? "Vercel API-token kell" : "Állapot betöltése"} detail="A Vercel költség adminból lekérhető; Render számlázást a jelenlegi API nem adja ki" tone={finopsStatus?.vercel_billing_configured ? "green" : "amber"} />
+        <CoverageCard title="Cloud-számla" status={finopsStatus?.vercel_billing_configured ? "Vercel API aktív" : finopsStatus ? "Vercel API-token kell" : "Állapot betöltése"} detail="Vercel számlázás adminból lekérhető; Render számlaadat nincs bekötve" tone={finopsStatus?.vercel_billing_configured ? "green" : "amber"} />
       </div>
       <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300">
         <strong className="text-cyan-200">Mit mér ez az oldal?</strong>
@@ -79,7 +79,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       </div>
       {auth && <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="font-semibold">Vercel számlázási adatok · admin</h3><p className="mt-1 text-xs text-slate-400">Az elmúlt 30 nap FOCUS költségei. A Render számlázása külön nincs API-kapcsolaton.</p></div>
+          <div><h3 className="font-semibold">Vercel számlázási adatok · admin</h3><p className="mt-1 text-xs text-slate-400">Az elmúlt 30 nap Vercel FOCUS költségei; Render számla nincs ebben az adatkapcsolatban.</p></div>
           <button type="button" disabled={cloudBillingLoading} onClick={async () => {
             setCloudBillingLoading(true); setCloudBillingError(''); setCloudBilling(null);
             try {
@@ -96,7 +96,9 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
         </div>
         {cloudBillingError && <p role="alert" className="mt-3 text-sm text-amber-200">{cloudBillingError}</p>}
         {cloudBilling && <div className="mt-4 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">{cloudBilling.totals.map(total => <Metric key={total.currency} label={'Vercel · ' + cloudBilling.window_days + ' nap · ' + total.currency} value={new Intl.NumberFormat('en-US', { style: 'currency', currency: total.currency, maximumFractionDigits: 4 }).format(Number(total.billed_cost) || 0)} />)}</div>
+          {cloudBilling.totals.length === 0
+            ? <p className="text-sm text-slate-300">A Vercel nem adott vissza elszámolt költséget az elmúlt 30 napra.</p>
+            : <div className="grid gap-3 sm:grid-cols-2">{cloudBilling.totals.map(total => <Metric key={total.currency} label={'Vercel · ' + cloudBilling.window_days + ' nap · ' + total.currency} value={new Intl.NumberFormat('en-US', { style: 'currency', currency: total.currency, maximumFractionDigits: 4 }).format(Number(total.billed_cost) || 0)} />)}</div>}
           <div className="space-y-2">{cloudBilling.services.map((row, index) => <div key={row.service + '-' + row.currency + '-' + index} className="flex justify-between gap-4 border-t border-white/10 py-2 text-sm"><span>{row.service} · {row.currency}</span><span>{Number(row.billed_cost).toFixed(4)}</span></div>)}</div>
         </div>}
       </div>}
