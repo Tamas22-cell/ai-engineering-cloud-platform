@@ -1,5 +1,5 @@
 """Bounded, reproducible synthetic regression training for MLOps experiments."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 import re
 import hashlib
@@ -7,12 +7,12 @@ import hmac
 import json
 import math
 from time import perf_counter
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -272,8 +272,100 @@ async def predict_from_training_run(
             raise ValueError("Non-finite prediction")
     except (KeyError, TypeError, ValueError, OverflowError):
         raise HTTPException(status_code=422, detail="Invalid model artifact or input")
+    # Keep only batch aggregates, never raw input values. A failed telemetry write
+    # must not turn a valid prediction into a failed inference request.
+    try:
+        values = np.asarray(request.values, dtype=float)
+        batch_mean = float(np.mean(values))
+        batch_std = float(np.std(values))
+        outlier_count = int(np.count_nonzero(np.abs((values - mean) / std) > 3.0))
+        await db.execute(text("""
+            INSERT INTO mlops_input_drift_batches
+                (id, run_id, sample_count, input_mean, input_std, outlier_count, created_at)
+            VALUES (:id, :run_id, :n, :mean, :std, :outliers, :created_at)
+        """), {
+            "id": str(uuid4()), "run_id": run.id, "n": len(request.values),
+            "mean": batch_mean, "std": batch_std, "outliers": outlier_count,
+            "created_at": datetime.now(timezone.utc),
+        })
+        await db.commit()
+    except Exception:
+        await db.rollback()
+
     return {"run_id": run.id, "artifact_sha256": digest,
             "predictions": predictions, "count": len(predictions)}
+
+
+@router.get("/runs/{run_id}/input-drift")
+async def input_drift_summary(
+    run_id: str,
+    user=Depends(require_role("admin", "developer")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compare recent aggregate inference inputs with the run's training baseline."""
+    try:
+        rid = str(UUID(run_id))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid run ID")
+    run = await db.get(MLExperimentRun, rid)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "completed":
+        raise HTTPException(status_code=409, detail="Training run is not completed")
+    artifact = (run.hyperparameters or {}).get("model_artifact")
+    parameters = artifact.get("parameters") if isinstance(artifact, dict) else None
+    try:
+        baseline_mean = float(parameters["input_mean"])
+        baseline_std = float(parameters["input_std"])
+        if not math.isfinite(baseline_mean) or not math.isfinite(baseline_std) or baseline_std <= 0:
+            raise ValueError("Invalid baseline")
+    except (TypeError, KeyError, ValueError):
+        raise HTTPException(status_code=409, detail="Training baseline is unavailable")
+    since = datetime.now(timezone.utc) - timedelta(days=30)
+    rows = (await db.execute(text("""
+        SELECT sample_count, input_mean, input_std, outlier_count
+        FROM mlops_input_drift_batches
+        WHERE run_id = :run_id AND created_at >= :since
+    """), {"run_id": rid, "since": since})).mappings().all()
+    n = sum(int(row["sample_count"]) for row in rows)
+    batch_count = len(rows)
+    if n == 0:
+        return {
+            "run_id": rid, "window_days": 30, "status": "no_inference_data",
+            "batch_count": 0, "sample_count": 0, "baseline_mean": baseline_mean,
+            "baseline_std": baseline_std, "observed_mean": None, "observed_std": None,
+            "mean_shift_in_std": None, "std_ratio": None, "outlier_rate": None,
+            "signals": [],
+            "privacy": "Only aggregate counts and moments are stored; raw inputs are not retained.",
+        }
+    observed_mean = sum(int(row["sample_count"]) * float(row["input_mean"]) for row in rows) / n
+    variance = sum(
+        int(row["sample_count"]) * (
+            float(row["input_std"]) ** 2 + (float(row["input_mean"]) - observed_mean) ** 2
+        ) for row in rows
+    ) / n
+    observed_std = math.sqrt(max(variance, 0.0))
+    mean_shift = abs(observed_mean - baseline_mean) / baseline_std
+    std_ratio = observed_std / baseline_std
+    outlier_rate = sum(int(row["outlier_count"]) for row in rows) / n
+    thresholds = {"minimum_samples": 30, "mean_shift_standard_deviations": 1.0, "std_ratio_outside": [0.67, 1.5], "outlier_rate": 0.05}
+    signals = []
+    if mean_shift > thresholds["mean_shift_standard_deviations"]:
+        signals.append("mean_shift")
+    if std_ratio < thresholds["std_ratio_outside"][0] or std_ratio > thresholds["std_ratio_outside"][1]:
+        signals.append("variance_shift")
+    if outlier_rate > thresholds["outlier_rate"]:
+        signals.append("high_outlier_rate")
+    state = "insufficient_data" if n < thresholds["minimum_samples"] else "drift_detected" if signals else "within_expected_range"
+    return {
+        "run_id": rid, "window_days": 30, "status": state, "batch_count": batch_count,
+        "sample_count": n, "baseline_mean": baseline_mean, "baseline_std": baseline_std,
+        "observed_mean": observed_mean, "observed_std": observed_std,
+        "mean_shift_in_std": mean_shift, "std_ratio": std_ratio, "outlier_rate": outlier_rate,
+        "signals": signals, "thresholds": thresholds,
+        "privacy": "Only aggregate counts and moments are stored; raw inputs are not retained.",
+        "note": "Heuristic input-distribution monitoring, not a statistical guarantee or model-quality alert.",
+    }
 
 
 @router.get("/experiments/{experiment_id}/active-version")

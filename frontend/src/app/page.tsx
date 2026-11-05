@@ -205,7 +205,7 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     },
     {
       title: 'MLOps',
-      detail: 'Training, artifact versions, active inference and rollback preflight; drift monitoring pending.',
+      detail: 'Synthetic training, verified artifact versions, active inference, rollback preflight and aggregate input-drift signals.',
       state: 'Available in MLOps · activation admin-only',
     },
     {
@@ -527,6 +527,7 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
 function DevOpsView() {
   const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [database, setDatabase] = useState('Checking...');
+  const [integrations, setIntegrations] = useState<IntegrationHealth | null>(null);
   const [checkedAt, setCheckedAt] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [ciRuns, setCiRuns] = useState<CiRun[]>([]);
@@ -548,8 +549,16 @@ function DevOpsView() {
         } catch {
           if (!cancelled) setDatabase('Unavailable');
         }
+        try {
+          const response = await fetch('/backend/health/integrations', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+          if (!response.ok) throw new Error('Integration health unavailable');
+          const result = await response.json() as IntegrationHealth;
+          if (!cancelled) setIntegrations(result);
+        } catch {
+          if (!cancelled) setIntegrations(null);
+        }
       } catch {
-        if (!cancelled) { setStatus('offline'); setDatabase('Unavailable'); }
+        if (!cancelled) { setStatus('offline'); setDatabase('Unavailable'); setIntegrations(null); }
       } finally {
         if (!cancelled) setCheckedAt(new Date().toLocaleTimeString());
       }
@@ -585,9 +594,11 @@ function DevOpsView() {
         <div><h2 className="text-xl font-semibold">DevOps & CI/CD</h2><p className="text-sm text-slate-400">Valós idejű backend- és adatbázis-ellenőrzés; CI/CD állapot a szolgáltatóknál.</p></div>
         <button type="button" onClick={() => setRefresh(n => n + 1)} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200">Állapot frissítése</button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">FastAPI / Render</h3><p className="mt-2 text-xl font-semibold" role="status">{status === 'checking' ? 'Checking...' : status === 'online' ? 'Online' : 'Offline / unreachable'}</p><p className="mt-2 text-xs text-slate-400">/backend/health/live</p></div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">PostgreSQL readiness</h3><p className="mt-2 text-xl font-semibold" role="status">{database}</p><p className="mt-2 text-xs text-slate-400">/backend/health/ready</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Redis</h3><p className="mt-2 text-xl font-semibold" role="status">{integrations ? integrations.redis === 'connected' ? 'Connected' : 'Disconnected' : status === 'offline' ? 'Unavailable' : 'Checking...'}</p><p className="mt-2 text-xs text-slate-400">/backend/health/integrations · live ping</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Langfuse</h3><p className="mt-2 text-xl font-semibold" role="status">{integrations ? integrations.langfuse === 'configured' ? 'Configured' : 'Not configured' : status === 'offline' ? 'Unavailable' : 'Checking...'}</p><p className="mt-2 text-xs text-slate-400">Kulcsok beállítva; trace-kézbesítés külön ellenőrzendő.</p></div>
       </div>
       <p className="text-xs text-slate-400">{checkedAt ? `Utolsó ellenőrzés: ${checkedAt}` : 'Ellenőrzés folyamatban'}. A hálózati hiba nem bizonyítja, hogy a szolgáltatás leállt.</p>
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
