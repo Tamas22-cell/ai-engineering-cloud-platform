@@ -67,7 +67,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-FastAPIInstrumentor.instrument_app(app, excluded_urls="health/(live|ready|integrations)")
+FastAPIInstrumentor.instrument_app(app, excluded_urls="health/(live|ready|integrations(/langfuse-probe)?)")
 
 
 @app.middleware("http")

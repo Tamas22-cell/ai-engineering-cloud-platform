@@ -464,6 +464,7 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
   const [agentRuns, setAgentRuns] = useState<AgentRunMonitor[]>([]);
   const [monitorStatus, setMonitorStatus] = useState('Bejelentkezés szükséges az Agent Monitoring előzményekhez.');
   const [traceExportStatus, setTraceExportStatus] = useState('Checking...');
+  const [traceProbeBusy, setTraceProbeBusy] = useState(false);
   useEffect(() => {
     if (!auth) { setAgentRuns([]); setMonitorStatus('Bejelentkezés szükséges az Agent Monitoring előzményekhez.'); return; }
     let cancelled = false;
@@ -496,6 +497,34 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
     void checkTraceExport();
     return () => { cancelled = true; };
   }, []);
+  async function verifyLangfuseDelivery() {
+    if (!auth || traceProbeBusy) return;
+    setTraceProbeBusy(true);
+    try {
+      const response = await fetch('/backend/health/integrations/langfuse-probe', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${auth.access_token}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15000),
+      });
+      const result = await response.json() as { status?: string; checked_at?: string; detail?: string };
+      if (!response.ok) {
+        const message = response.status === 401 ? 'A munkamenet lejárt · jelentkezz be újra'
+          : response.status === 403 ? 'Admin vagy developer szerepkör szükséges'
+          : result.detail ?? `Langfuse-próba sikertelen (HTTP ${response.status})`;
+        setTraceExportStatus(message);
+        return;
+      }
+      setTraceExportStatus(result.status === 'delivered'
+        ? `Tesztspan fogadva · ${result.checked_at ? new Date(result.checked_at).toLocaleTimeString('hu-HU') : 'most'}`
+        : 'A Langfuse nem igazolta vissza a tesztspant');
+    } catch {
+      setTraceExportStatus('A Langfuse-próba nem érte el az API-t');
+    } finally {
+      setTraceProbeBusy(false);
+    }
+  }
+
   const steps = ['planner', 'retriever', 'synthesizer', 'reviewer'];
   return <section className="max-w-5xl space-y-5">
     <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5"><h2 className="text-xl font-semibold">Multi-Agent RAG Observability</h2><p className="mt-2 text-sm text-slate-400">A legutóbbi RAG-kérdés valós LangGraph futási adatai ebben a böngészőmunkamenetben. Nincs szimulált telemetria.</p></div>
@@ -503,7 +532,8 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
     <div className="rounded-xl border border-white/10 bg-white/5 p-5">
       <h3 className="font-semibold">Langfuse trace export</h3>
       <p className="mt-2 text-sm text-cyan-200" role="status">{traceExportStatus}</p>
-      <p className="mt-1 text-xs text-slate-400">FastAPI request spanek exportálhatók. A beállított kulcs nem bizonyítja, hogy a Langfuse fogadta is a trace-eket. Kérés törzse és dokumentumszöveg nincs exportálva.</p>
+      <p className="mt-1 text-xs text-slate-400">A próba kizárólag technikai span-t küld; kérdés-, token- és dokumentumszöveg nem kerül bele.</p>
+      {auth ? <button type="button" onClick={() => void verifyLangfuseDelivery()} disabled={traceProbeBusy} className="mt-3 rounded border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200 disabled:opacity-50">{traceProbeBusy ? 'Tesztspan küldése…' : 'Langfuse-fogadás ellenőrzése'}</button> : <p className="mt-3 text-xs text-amber-200">A próba indításához jelentkezz be admin vagy developer fiókkal.</p>}
     </div>
     <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
       <h3 className="font-semibold">Agent Monitoring · mentett workflow futások</h3>
