@@ -29,6 +29,31 @@ export default function DataEngineeringView() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false);
 
+  function downloadReport() {
+    if (!profile || profile.error) return;
+    const report = {
+      generated_at: new Date().toISOString(),
+      source_file: profile.name,
+      summary: { rows: profile.rows, columns: profile.columns.length, duplicate_rows: profile.duplicateRows },
+      columns: profile.columns.map(column => ({
+        name: column.name,
+        missing_values: column.missing,
+        missing_percent: profile.rows ? Number((column.missing / profile.rows * 100).toFixed(2)) : 0,
+        unique_values: column.unique,
+        examples: column.examples,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${profile.name.replace(/\.csv$/i, '')}-quality-report.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleFile(file?: File) {
     if (!file) return;
     setBusy(true);
@@ -67,6 +92,10 @@ export default function DataEngineeringView() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([['File', profile.name], ['Rows', String(profile.rows)], ['Columns', String(profile.columns.length)], ['Duplicate rows', String(profile.duplicateRows)]] as const).map(([label, value]) =>
           <div key={label} className="rounded-lg border border-white/10 p-4"><p className="text-xs text-slate-400">{label}</p><p className="mt-2 break-words font-semibold">{value}</p></div>)}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-semibold">Column quality report</h3>
+        <button type="button" onClick={downloadReport} className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400">Download JSON report</button>
       </div>
       <div className="overflow-x-auto rounded-xl border border-white/10">
         <table className="w-full text-left text-sm"><thead className="bg-white/5"><tr><th className="p-3">Column</th><th className="p-3">Missing</th><th className="p-3">Unique</th><th className="p-3">Examples</th></tr></thead>
