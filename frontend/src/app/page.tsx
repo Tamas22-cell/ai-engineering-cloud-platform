@@ -329,7 +329,7 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
             <p className="text-[#9AA3AE] text-sm min-h-10">
               {module.detail}
             </p>
-            <div className="mt-3 text-amber-300 text-xs">
+            <div className={`mt-3 text-xs ${module.state.startsWith('Partly') ? 'text-amber-300' : module.state.startsWith('Implemented') || module.state.startsWith('JWT/RBAC') ? 'text-emerald-300' : 'text-slate-300'}`}>
               {module.state}
             </div>
           </Card>
