@@ -6,7 +6,8 @@ type Experiment = { id: string; name: string; model_id: string };
 type Run = { id: string; status: string; hyperparameters: Record<string, unknown>; dataset_version: string | null; git_commit_sha: string | null };
 type Metric = { id: string; name: string; value: number; step: number };
 type Auth = { access_token: string; refresh_token: string };
-type Model = { id: string; name: string; version: string };\ntype InputDrift = { status: string; window_days: number; batch_count: number; sample_count: number; baseline_mean: number; baseline_std: number; observed_mean: number | null; observed_std: number | null; mean_shift_in_std: number | null; std_ratio: number | null; outlier_rate: number | null; signals: string[]; note?: string };
+type Model = { id: string; name: string; version: string };
+type InputDrift = { status: string; window_days: number; batch_count: number; sample_count: number; baseline_mean: number; baseline_std: number; observed_mean: number | null; observed_std: number | null; mean_shift_in_std: number | null; std_ratio: number | null; outlier_rate: number | null; signals: string[]; note?: string };
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export default function ExperimentTracking({ auth, setAuth, models, role }: { auth: Auth | null; setAuth: Dispatch<SetStateAction<Auth | null>>; models: Model[]; role: string | null }) {
@@ -33,7 +34,9 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [training, setTraining] = useState(false);
   const [predictInputs, setPredictInputs] = useState<Record<string, string>>({});
   const [predictBusy, setPredictBusy] = useState<string | null>(null);
-  const [predictResults, setPredictResults] = useState<Record<string, number[]>>({});\n  const [inputDrift, setInputDrift] = useState<Record<string, InputDrift>>({});\n  const [driftBusy, setDriftBusy] = useState<string | null>(null);
+  const [predictResults, setPredictResults] = useState<Record<string, number[]>>({});
+  const [inputDrift, setInputDrift] = useState<Record<string, InputDrift>>({});
+  const [driftBusy, setDriftBusy] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [promotionResult, setPromotionResult] = useState('');
@@ -72,7 +75,8 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     setArtifactVersions([]);
     setRollbackTarget('');
     setRollbackPreview(null);
-    setPredictResults({});\n    setInputDrift({});
+    setPredictResults({});
+    setInputDrift({});
     setComparison([]);
     setCandidateRun(null);
     setReadiness(null);
@@ -256,7 +260,8 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     setDriftBusy(runId);
     try {
       const response = await authenticatedGet(`/mlops/training/runs/${encodeURIComponent(runId)}/input-drift`);
-      setInputDrift(previous => ({ ...previous, [runId]: await response.json() as InputDrift }));
+      const summary = await response.json() as InputDrift;
+      setInputDrift(previous => ({ ...previous, [runId]: summary }));
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Bemeneti drift állapot nem kérdezhető le.');
