@@ -5,6 +5,16 @@ on:
   pull_request:
   workflow_dispatch:
 jobs:
+  docker-compose-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate development Compose configuration
+        run: docker compose -f docker-compose.yml config --quiet
+      - name: Validate production Compose override
+        env:
+          SECRET_KEY: ci-validation-placeholder-not-a-real-secret
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
   frontend:
     runs-on: ubuntu-latest
     defaults:
