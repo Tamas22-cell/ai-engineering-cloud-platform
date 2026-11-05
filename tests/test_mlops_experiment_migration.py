@@ -19,7 +19,10 @@ def test_experiment_migration_is_in_alembic_history():
     drift_revision = script.get_revision("d4c8a71f209b")
     assert drift_revision is not None
     assert drift_revision.down_revision == "b7a1c93e4d20"
-    assert script.get_heads() == ["d4c8a71f209b"]
+    render_billing_revision = script.get_revision("e6f0b2914c73")
+    assert render_billing_revision is not None
+    assert render_billing_revision.down_revision == "d4c8a71f209b"
+    assert script.get_heads() == ["e6f0b2914c73"]
 
 
 def test_experiment_migration_creates_only_isolated_tables(monkeypatch):
