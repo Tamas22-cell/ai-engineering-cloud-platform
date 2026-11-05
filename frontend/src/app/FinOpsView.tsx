@@ -159,7 +159,19 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
               if (!response.ok) {
                 if (response.status === 403) throw new Error('Ehhez a kimutatáshoz admin jogosultság kell.');
                 if (response.status === 503) throw new Error('A Vercel API-token még nincs beállítva a backend környezetében.');
-                throw new Error('A Vercel számlázási API ' + response.status + ' hibát adott.');
+                if (response.status === 401) throw new Error('A munkamenet lejárt. Jelentkezz be újra az Agents oldalon.');
+                const data = await response.json().catch(() => null);
+                const messages: Record<string, string> = {
+                  vercel_token_invalid: 'A Vercel nem fogadta el a szerveren beállított tokent.',
+                  vercel_billing_forbidden: 'A Vercel-token nem fér hozzá a csapat számlázásához.',
+                  vercel_rate_limited: 'A Vercel átmenetileg korlátozza a lekéréseket. Próbáld újra később.',
+                  vercel_billing_unavailable: 'A Vercel számlázási szolgáltatása hibát jelzett.',
+                  vercel_billing_timeout: 'A Vercel számlázási lekérése túllépte az időkorlátot.',
+                  vercel_billing_unreadable: 'A szerver nem tudta beolvasni a Vercel számlázási adatait.',
+                };
+                const code = data?.detail?.code;
+                throw new Error((typeof code === 'string' && Object.prototype.hasOwnProperty.call(messages, code) ? messages[code] : undefined)
+                  ?? `A számlázási lekérés sikertelen (HTTP ${response.status}).`);
               }
               setCloudBilling(await response.json() as CloudBilling);
             } catch (err) { setCloudBillingError(err instanceof Error ? err.message : 'A számlázási adatok nem érhetők el.'); }
@@ -169,7 +181,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
         {cloudBillingError && <p role="alert" className="mt-3 text-sm text-amber-200">{cloudBillingError}</p>}
         {cloudBilling && <div className="mt-4 space-y-4">
           {cloudBilling.totals.length === 0
-            ? <p className="text-sm text-slate-300">A Vercel nem adott vissza elszámolt költséget az elmúlt 30 napra.</p>
+            ? <p className="text-sm text-slate-300">A Vercel nem adott vissza számlázási tételeket az elmúlt 30 napra.</p>
             : <div className="grid gap-3 sm:grid-cols-2">{cloudBilling.totals.map(total => <Metric key={total.currency} label={'Vercel · ' + cloudBilling.window_days + ' nap · ' + total.currency} value={new Intl.NumberFormat('en-US', { style: 'currency', currency: total.currency, maximumFractionDigits: 4 }).format(Number(total.billed_cost) || 0)} />)}</div>}
           <div className="space-y-2">{cloudBilling.services.map((row, index) => <div key={row.service + '-' + row.currency + '-' + index} className="flex justify-between gap-4 border-t border-white/10 py-2 text-sm"><span>{row.service} · {row.currency}</span><span>{Number(row.billed_cost).toFixed(4)}</span></div>)}</div>
         </div>}
