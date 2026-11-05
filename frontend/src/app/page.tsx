@@ -6,7 +6,8 @@ import RagView from './RagView';
 import AgentsView from './AgentsView';
 import MlopsView from './MlopsView';
 import LiveApiObservability from './LiveApiObservability';
-import DataEngineeringView from './DataEngineeringView';\nimport FinOpsView from './FinOpsView';
+import DataEngineeringView from './DataEngineeringView';
+import FinOpsView from './FinOpsView';
 
 type SharedAuth = { access_token: string; refresh_token: string };
 
@@ -29,7 +30,8 @@ const navItems = [
   { id: 'data', label: 'Data Eng', icon: '🔄' },
   { id: 'devops', label: 'DevOps', icon: '🚀' },
   { id: 'infra', label: 'Infrastructure', icon: '☁️' },
-  { id: 'observability', label: 'Observability', icon: '📊' },\n  { id: 'finops', label: 'FinOps', icon: '💰' },
+  { id: 'observability', label: 'Observability', icon: '📊' },
+  { id: 'finops', label: 'FinOps', icon: '💰' },
   { id: 'security', label: 'Security', icon: '🔒' },
   { id: 'skills', label: 'Skills', icon: '🎯' },
 ];
@@ -228,8 +230,8 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     },
     {
       title: 'FinOps',
-      detail: 'Cloud spend based on provider billing APIs',
-      state: 'Not connected',
+      detail: 'Per-user measured RAG token usage and optional cost estimate; provider cloud billing is not connected.',
+      state: 'Available in FinOps · sign-in required',
     },
   ];
 
