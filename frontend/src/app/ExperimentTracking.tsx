@@ -14,6 +14,14 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeBusy, setActiveBusy] = useState(false);
   const [activeFeedback, setActiveFeedback] = useState('');
+  const [activeValues, setActiveValues] = useState('0, 1, 2');
+  const [activePrediction, setActivePrediction] = useState<number[] | null>(null);
+  const [activePredictBusy, setActivePredictBusy] = useState(false);
+  const [artifactVersions, setArtifactVersions] = useState<{ version_id: string; run_id: string; active: boolean; integrity_ok: boolean; dataset_version?: string | null; created_at?: string }[]>([]);
+  const [artifactBusy, setArtifactBusy] = useState(false);
+  const [rollbackTarget, setRollbackTarget] = useState('');
+  const [rollbackPreview, setRollbackPreview] = useState<Record<string, unknown> | null>(null);
+  const [rollbackBusy, setRollbackBusy] = useState(false);
   const [selected, setSelected] = useState('');
   const [runs, setRuns] = useState<Run[]>([]);
   const [metrics, setMetrics] = useState<Record<string, Metric[]>>({});
@@ -60,6 +68,10 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     setTrainingResult(null);
     setActiveRunId(null);
     setActiveFeedback('');
+    setActivePrediction(null);
+    setArtifactVersions([]);
+    setRollbackTarget('');
+    setRollbackPreview(null);
     setPredictResults({});
     setComparison([]);
     setCandidateRun(null);
@@ -313,6 +325,82 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   }
 
 
+  async function authenticatedGet(path: string) {
+    if (!auth) throw new Error('Jelentkezz be újra.');
+    let response = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${auth.access_token}` }, cache: 'no-store' });
+    if (response.status === 401) {
+      const refreshed = await fetch(`${API}/auth/refresh`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: auth.refresh_token }),
+      });
+      if (!refreshed.ok) {
+        setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous);
+        throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+      }
+      const tokens = await refreshed.json() as Auth;
+      setAuth(tokens);
+      response = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${tokens.access_token}` }, cache: 'no-store' });
+    }
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null) as { detail?: string } | null;
+      throw new Error(detail?.detail || `API HTTP ${response.status}`);
+    }
+    return response;
+  }
+
+  async function predictActive() {
+    if (!selected || !auth || activePredictBusy || !activeRunId) return;
+    const raw = activeValues.split(',').map(value => value.trim());
+    const values = raw.map(Number);
+    if (!raw.length || raw.length > 1000 || raw.some(value => !value) || values.some(value => !Number.isFinite(value))) {
+      setError('Adj meg 1–1000 véges számot, vesszővel elválasztva.'); return;
+    }
+    setActivePredictBusy(true); setActivePrediction(null); setError('');
+    try {
+      const submit = (token: string) => fetch(`${API}/mlops/training/experiments/${encodeURIComponent(selected)}/predict-active`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ values }),
+      });
+      let response = await submit(auth.access_token);
+      if (response.status === 401) {
+        const refreshed = await fetch(`${API}/auth/refresh`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: auth.refresh_token }),
+        });
+        if (!refreshed.ok) { setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+        const tokens = await refreshed.json() as Auth; setAuth(tokens); response = await submit(tokens.access_token);
+      }
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null) as { detail?: string } | null;
+        throw new Error(detail?.detail || `Aktív modell előrejelzése: HTTP ${response.status}`);
+      }
+      const result = await response.json() as { predictions: number[] };
+      setActivePrediction(result.predictions);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Aktív modell előrejelzése sikertelen.'); }
+    finally { setActivePredictBusy(false); }
+  }
+
+  async function loadArtifactVersions() {
+    if (!selected || artifactBusy) return;
+    setArtifactBusy(true); setError('');
+    try {
+      const response = await authenticatedGet(`/mlops/training/experiments/${encodeURIComponent(selected)}/artifact-versions`);
+      const data = await response.json() as { versions: typeof artifactVersions };
+      setArtifactVersions(data.versions || []);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Artifact-verziók nem tölthetők be.'); }
+    finally { setArtifactBusy(false); }
+  }
+
+  async function previewRollback() {
+    if (!selected || !rollbackTarget || rollbackBusy) return;
+    setRollbackBusy(true); setRollbackPreview(null); setError('');
+    try {
+      const response = await authenticatedGet(`/mlops/training/experiments/${encodeURIComponent(selected)}/rollback-preview/${encodeURIComponent(rollbackTarget)}`);
+      setRollbackPreview(await response.json() as Record<string, unknown>);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Visszaállítási előnézet nem tölthető be.'); }
+    finally { setRollbackBusy(false); }
+  }
+
   async function activeRequest(runId?: string) {
     if (!selected || !auth || activeBusy) return;
     if (runId && (role !== 'admin' || !window.confirm('Aktív modellverzió cseréje? A korábbi verzió visszaállítható.'))) return;
@@ -412,6 +500,35 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         </select>}
       </div>
       {activeFeedback && <p role="status" aria-live="polite" className="text-xs text-emerald-300">{activeFeedback}</p>}
+      {activeRunId && auth && <div className="space-y-2 rounded border border-white/10 p-3">
+        <p className="text-sm font-medium">Előrejelzés az aktív modellen</p>
+        <div className="flex flex-wrap gap-2">
+          <input aria-label="Aktív modell bemeneti értékei" value={activeValues} onChange={e => setActiveValues(e.target.value)} placeholder="0, 1, 2" className="min-w-48 flex-1 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+          <button type="button" disabled={activePredictBusy} onClick={() => void predictActive()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{activePredictBusy ? 'Számítás...' : 'Aktív modell futtatása'}</button>
+        </div>
+        {activePrediction && <p role="status" className="break-words text-emerald-200">Eredmény: {activePrediction.map(value => value.toFixed(4)).join(', ')}</p>}
+      </div>}
+      <div className="space-y-2 rounded border border-white/10 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium">Artifact-verziók és visszaállítási ellenőrzés</p>
+          <button type="button" disabled={!auth || artifactBusy} onClick={() => void loadArtifactVersions()} className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200 disabled:opacity-50">{artifactBusy ? 'Betöltés...' : 'Verziók frissítése'}</button>
+        </div>
+        {artifactVersions.length > 0 && <div className="space-y-2 text-xs">
+          {artifactVersions.map(version => <p key={version.version_id} className="break-all text-slate-300">Futás: {version.run_id} · integritás: {version.integrity_ok ? 'rendben' : 'hibás'}{version.active ? ' · aktív' : ''}</p>)}
+          <div className="flex flex-wrap gap-2">
+            <select aria-label="Visszaállítás célfutás" value={rollbackTarget} onChange={e => { setRollbackTarget(e.target.value); setRollbackPreview(null); }} className="min-w-48 flex-1 rounded bg-[#11151C] p-2">
+              <option value="">Válassz korábbi futást</option>
+              {artifactVersions.map(version => <option key={version.run_id} value={version.run_id}>{version.run_id.slice(0, 8)}{version.active ? ' (aktív)' : ''}</option>)}
+            </select>
+            <button type="button" disabled={!rollbackTarget || rollbackBusy} onClick={() => void previewRollback()} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{rollbackBusy ? 'Ellenőrzés...' : 'Visszaállítás ellenőrzése'}</button>
+          </div>
+          {rollbackPreview && <div role="status" className="space-y-1 rounded bg-black/20 p-2 text-xs">
+            <p className={rollbackPreview.eligible_for_activation_review === true ? 'text-emerald-300' : 'text-amber-300'}>{rollbackPreview.eligible_for_activation_review === true ? 'Az ellenőrzés alapján aktiválásra alkalmas.' : 'Az ellenőrzés nem engedélyezi az aktiválást.'}</p>
+            <pre className="overflow-x-auto whitespace-pre-wrap text-slate-300">{JSON.stringify(rollbackPreview.checks ?? rollbackPreview, null, 2)}</pre>
+            <p className="text-slate-400">Az aktiválás admin művelet; ez az ellenőrzés önmagában nem változtatja meg az aktív verziót.</p>
+          </div>}
+        </div>}
+      </div>
       {!auth && <p className="text-xs text-amber-300">Az aktív modell lekérdezéséhez jelentkezz be.</p>}
       <p className="text-xs text-slate-400">{runs.length} futás (legfeljebb 50)</p>
       {canWrite && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-cyan-400/20 bg-black/20 p-3">
