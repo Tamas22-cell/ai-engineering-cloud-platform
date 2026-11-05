@@ -99,10 +99,10 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort('A kérés időkorlátja lejárt.'), mode === 'workflow' ? 150000 : 90000);
     try {
-      if (mode !== 'demo' && !auth) throw new Error('Előbb jelentkezz be az e-mail-címeddel.');
+      if (!auth) throw new Error('Előbb jelentkezz be az e-mail-címeddel.');
       const path = mode === 'demo' ? '/agents/chat' : mode === 'llm' ? '/agents/llm-chat' : mode === 'tools' ? '/agents/tool-chat' : '/agents/workflow';
-      let response = await agentRequest(path, mode === 'demo' ? '' : auth!.access_token, controller.signal);
-      if (response.status === 401 && mode !== 'demo' && auth) {
+      let response = await agentRequest(path, auth!.access_token, controller.signal);
+      if (response.status === 401 && auth) {
         const refreshed = await fetch(`${API_URL}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
