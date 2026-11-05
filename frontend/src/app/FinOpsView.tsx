@@ -73,7 +73,8 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
         <CoverageCard title="Tokenköltség" status={finopsStatus?.pricing_configured ? "Árazás aktív" : finopsStatus ? "Árbeállítás szükséges" : "Állapot betöltése"} detail="gpt-4.1-mini · OpenAI standard tokenárak alapján" tone={finopsStatus?.pricing_configured ? "green" : "amber"} />
         <CoverageCard title="Render-számla" status="Nincs API-bekötés" detail="A Render számlái a Render Dashboard Billing oldalán érhetők el; a nyilvános API nem kínál számlalekérő végpontot." tone="amber" />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Render számlák és aktuális költségek megtekintése:</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">Render Dashboard megnyitása</a></div>\n      <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Render számlák és aktuális költségek megtekintése:</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">Render Dashboard megnyitása</a></div>
+      <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300">
         <strong className="text-cyan-200">Mit mér ez az oldal?</strong>
         <p className="mt-1">Sikeres, bejelentkezett RAG-válaszgenerálások tényleges tokenhasználatát az elmúlt 30 napból. Az embedding-hívások és a szolgáltatói infrastruktúra költségei külön mérés nélkül nem jelennek meg itt.</p>
       </div>
