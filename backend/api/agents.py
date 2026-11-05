@@ -6,6 +6,7 @@ from openai import AuthenticationError, PermissionDeniedError, RateLimitError, A
 from agents.gpt_tool_agent import run_gpt_tool_agent
 from fastapi import Depends, HTTPException
 from core.dependencies import get_current_user
+from core.rate_limit import rate_limit
 from agents.llm_agent import llm_agent
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -25,7 +26,7 @@ class ChatResponse(BaseModel):
     response: str
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, dependencies=[Depends(rate_limit(10))])
 async def chat(
     data: ChatRequest,
     user=Depends(get_current_user),
@@ -36,7 +37,7 @@ async def chat(
     })
     return ChatResponse(response=result["response"])
 
-@router.post("/llm-chat", response_model=ChatResponse)
+@router.post("/llm-chat", response_model=ChatResponse, dependencies=[Depends(rate_limit(10))])
 async def llm_chat(
     data: ChatRequest,
     user = Depends(get_current_user),
@@ -78,7 +79,7 @@ async def llm_chat(
             detail="LLM service unavailable",
         )
 
-@router.post("/tool-chat", response_model=ChatResponse)
+@router.post("/tool-chat", response_model=ChatResponse, dependencies=[Depends(rate_limit(10))])
 async def tool_chat(
     data: ChatRequest,
     user = Depends(get_current_user),
@@ -144,7 +145,7 @@ async def workflow_runs(user=Depends(get_current_user)):
         raise HTTPException(status_code=503, detail="Workflow history unavailable")
 
 
-@router.post("/workflow", response_model=WorkflowResponse)
+@router.post("/workflow", response_model=WorkflowResponse, dependencies=[Depends(rate_limit(5))])
 async def workflow_chat(
     data: WorkflowRequest,
     user=Depends(get_current_user),
