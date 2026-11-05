@@ -480,8 +480,50 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
     const interval = window.setInterval(() => void refresh(), 30000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [auth]);
+  const [healthSamples, setHealthSamples] = useState<{ at: string; latency: number; ok: boolean }[]>([]);
+  const [databaseHealth, setDatabaseHealth] = useState('Ellenőrzés alatt');
+  const [healthBusy, setHealthBusy] = useState(false);
+  const [healthRefresh, setHealthRefresh] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    async function probe() {
+      setHealthBusy(true);
+      const start = performance.now();
+      let ok = false;
+      try {
+        const response = await fetch('/backend/health/live', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+        ok = response.ok;
+      } catch { /* An unreachable backend counts as a failed browser probe. */ }
+      const latency = Math.round(performance.now() - start);
+      if (cancelled) return;
+      setHealthSamples(previous => [...previous.slice(-19), { at: new Date().toLocaleTimeString('hu-HU'), latency, ok }]);
+      try {
+        const ready = await fetch('/backend/health/ready', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+        const body = await ready.json() as HealthResponse;
+        if (!cancelled) setDatabaseHealth(ready.ok && body.database === 'connected' ? 'Connected' : 'Unavailable');
+      } catch { if (!cancelled) setDatabaseHealth('Unavailable'); }
+      if (!cancelled) setHealthBusy(false);
+    }
+    void probe();
+    const interval = window.setInterval(() => void probe(), 30000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [healthRefresh]);
+  const successfulProbes = healthSamples.filter(sample => sample.ok);
+  const averageLatency = successfulProbes.length ? Math.round(successfulProbes.reduce((sum, sample) => sum + sample.latency, 0) / successfulProbes.length) : null;
+  const probeFailureRate = healthSamples.length ? (100 * (healthSamples.length - successfulProbes.length) / healthSamples.length).toFixed(1) : null;
   const steps = ['planner', 'retriever', 'synthesizer', 'reviewer'];
   return <section className="max-w-5xl space-y-5">
+    <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Live API health · böngészőből mért</h3><button type="button" disabled={healthBusy} onClick={() => setHealthRefresh(value => value + 1)} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{healthBusy ? 'Mérés...' : 'Mérés frissítése'}</button></div>
+      <p className="text-xs text-slate-400">Valós /health/live és /health/ready HTTP-kérések 30 másodpercenként. A késleltetés és hibaarány csak az itt végzett böngészőpróbákra vonatkozik, nem a teljes szerverforgalomra.</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">FastAPI</p><strong className={healthSamples.at(-1)?.ok ? 'text-emerald-300' : 'text-amber-300'}>{healthSamples.length ? (healthSamples.at(-1)?.ok ? 'Online' : 'Unavailable') : 'Checking'}</strong></div>
+        <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">PostgreSQL</p><strong>{databaseHealth}</strong></div>
+        <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Átlagos probe latency</p><strong>{averageLatency === null ? 'Nincs adat' : averageLatency + ' ms'}</strong></div>
+        <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Probe hibaarány</p><strong>{probeFailureRate === null ? 'Nincs adat' : probeFailureRate + '%'}</strong></div>
+      </div>
+      {healthSamples.length > 0 && <div className="space-y-2"><div role="img" aria-label="HTTP health próbák késleltetése" className="flex h-32 items-end gap-1 rounded-lg border border-white/10 bg-black/20 p-3">{healthSamples.map((sample, index) => <div key={index} title={sample.at + ': ' + sample.latency + ' ms' + (sample.ok ? '' : ' (failed)')} className={sample.ok ? 'min-w-1 flex-1 rounded-t bg-cyan-400/80' : 'min-w-1 flex-1 rounded-t bg-red-400/80'} style={{ height: Math.max(8, Math.round(sample.latency / Math.max(1, ...healthSamples.map(item => item.latency)) * 100)) + '%' }} />)}</div><p className="text-xs text-slate-400">{healthSamples.length} mérés az aktuális oldalmegnyitás alatt · utolsó: {healthSamples.at(-1)?.at} · piros = sikertelen kérés</p></div>}
+    </div>
     <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5"><h2 className="text-xl font-semibold">Multi-Agent RAG Observability</h2><p className="mt-2 text-sm text-slate-400">A legutóbbi RAG-kérdés valós LangGraph futási adatai ebben a böngészőmunkamenetben. Nincs szimulált telemetria.</p></div>
     <LiveApiObservability />
     <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
