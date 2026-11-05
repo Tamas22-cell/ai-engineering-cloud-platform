@@ -6,7 +6,7 @@ type Experiment = { id: string; name: string; model_id: string };
 type Run = { id: string; status: string; hyperparameters: Record<string, unknown>; dataset_version: string | null; git_commit_sha: string | null };
 type Metric = { id: string; name: string; value: number; step: number };
 type Auth = { access_token: string; refresh_token: string };
-type Model = { id: string; name: string; version: string };
+type Model = { id: string; name: string; version: string };\ntype InputDrift = { status: string; window_days: number; batch_count: number; sample_count: number; baseline_mean: number; baseline_std: number; observed_mean: number | null; observed_std: number | null; mean_shift_in_std: number | null; std_ratio: number | null; outlier_rate: number | null; signals: string[]; note?: string };
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export default function ExperimentTracking({ auth, setAuth, models, role }: { auth: Auth | null; setAuth: Dispatch<SetStateAction<Auth | null>>; models: Model[]; role: string | null }) {
@@ -33,7 +33,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [training, setTraining] = useState(false);
   const [predictInputs, setPredictInputs] = useState<Record<string, string>>({});
   const [predictBusy, setPredictBusy] = useState<string | null>(null);
-  const [predictResults, setPredictResults] = useState<Record<string, number[]>>({});
+  const [predictResults, setPredictResults] = useState<Record<string, number[]>>({});\n  const [inputDrift, setInputDrift] = useState<Record<string, InputDrift>>({});\n  const [driftBusy, setDriftBusy] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [promotionResult, setPromotionResult] = useState('');
@@ -72,7 +72,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     setArtifactVersions([]);
     setRollbackTarget('');
     setRollbackPreview(null);
-    setPredictResults({});
+    setPredictResults({});\n    setInputDrift({});
     setComparison([]);
     setCandidateRun(null);
     setReadiness(null);
@@ -243,10 +243,25 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       }
       const result = await response.json() as { predictions: number[] };
       setPredictResults(previous => ({ ...previous, [runId]: result.predictions }));
+      await loadInputDrift(runId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Előrejelzés sikertelen.');
     } finally {
       setPredictBusy(null);
+    }
+  }
+
+  async function loadInputDrift(runId: string) {
+    if (!auth || driftBusy) return;
+    setDriftBusy(runId);
+    try {
+      const response = await authenticatedGet(`/mlops/training/runs/${encodeURIComponent(runId)}/input-drift`);
+      setInputDrift(previous => ({ ...previous, [runId]: await response.json() as InputDrift }));
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bemeneti drift állapot nem kérdezhető le.');
+    } finally {
+      setDriftBusy(null);
     }
   }
 
@@ -599,6 +614,16 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           </label>
           <button type="button" disabled={predictBusy !== null} onClick={() => void predictRun(run.id)} className="rounded bg-cyan-500 px-3 py-2 text-xs font-medium text-black disabled:opacity-50">{predictBusy === run.id ? 'Számítás...' : 'Predict'}</button>
           {predictResults[run.id] && <p role="status" className="break-words text-emerald-200">Előrejelzés: {predictResults[run.id].map(value => value.toFixed(4)).join(', ')}</p>}
+          <button type="button" disabled={driftBusy !== null} onClick={() => void loadInputDrift(run.id)} className="rounded border border-violet-400/40 px-3 py-2 text-xs text-violet-200 disabled:opacity-50">{driftBusy === run.id ? 'Drift mérés...' : 'Bemeneti drift ellenőrzése'}</button>
+          {inputDrift[run.id] && <div className="rounded border border-white/10 bg-black/20 p-3 text-xs">
+            <p className={inputDrift[run.id].status === 'drift_detected' ? 'font-medium text-amber-200' : inputDrift[run.id].status === 'within_expected_range' ? 'font-medium text-emerald-200' : 'font-medium text-slate-300'}>
+              {inputDrift[run.id].status === 'drift_detected' ? 'Drift jelzés' : inputDrift[run.id].status === 'within_expected_range' ? 'A minta a beállított tartományon belül' : inputDrift[run.id].status === 'insufficient_data' ? 'Kevés adat a minősítéshez' : inputDrift[run.id].status === 'no_inference_data' ? 'Nincs rögzített inference-adat' : inputDrift[run.id].status}
+            </p>
+            <p className="mt-1 text-slate-300">{inputDrift[run.id].sample_count} érték · {inputDrift[run.id].batch_count} batch · 30 nap</p>
+            {inputDrift[run.id].mean_shift_in_std !== null && <p className="mt-1 text-slate-400">Átlageltolódás: {inputDrift[run.id].mean_shift_in_std.toFixed(2)} szórás · szórásarány: {inputDrift[run.id].std_ratio?.toFixed(2)} · &gt;3σ érték: {((inputDrift[run.id].outlier_rate ?? 0) * 100).toFixed(1)}%</p>}
+            {inputDrift[run.id].signals.length > 0 && <p className="mt-1 text-amber-200">Jelzések: {inputDrift[run.id].signals.join(', ')}</p>}
+            <p className="mt-1 text-slate-500">A backend csak aggregált adatot tárol, nyers bemenetet nem. Heurisztikus jelzés, nem minőségi garancia.</p>
+          </div>}
         </div>}
         <button type="button" onClick={() => void showMetrics(run.id)} className="text-cyan-300 underline">Metrikák megjelenítése</button>
         {metrics[run.id] && <div className="space-y-1">{metrics[run.id].length ? metrics[run.id].map(m => <p key={m.id}>{m.name}: {m.value} (step {m.step})</p>) : <p>Még nincs metrika.</p>}</div>}
