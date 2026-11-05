@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 type Auth = { access_token: string; refresh_token: string };
+type FinOpsStatus = { pricing_configured: boolean; pricing_model: string; provider_billing_connected: boolean };
 type UsageReport = {
   window_days: number;
   source: string;
@@ -18,8 +19,21 @@ type UsageReport = {
 
 export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; onNavigate: (page: string) => void }) {
   const [report, setReport] = useState<UsageReport | null>(null);
+  const [finopsStatus, setFinopsStatus] = useState<FinOpsStatus | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/backend/finops/status', { cache: 'no-store', signal: AbortSignal.timeout(15000) })
+      .then(response => {
+        if (!response.ok) throw new Error('FinOps státusz nem érhető el');
+        return response.json() as Promise<FinOpsStatus>;
+      })
+      .then(data => { if (active) setFinopsStatus(data); })
+      .catch(() => { if (active) setFinopsStatus(null); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -52,7 +66,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
 
       <div className="grid gap-3 md:grid-cols-3">
         <CoverageCard title="Mért használat" status="Aktív" detail="Egy- és többügynökös RAG-válaszok OpenAI tokenjei" tone="green" />
-        <CoverageCard title="Tokenköltség" status={report?.priced_requests ? "Árazva" : "Árbeállítás szükséges"} detail="OPENAI_INPUT_USD_PER_1M és OPENAI_OUTPUT_USD_PER_1M alapján számolva" tone={report?.priced_requests ? "green" : "amber"} />
+        <CoverageCard title="Tokenköltség" status={finopsStatus?.pricing_configured ? "Árazás aktív" : finopsStatus ? "Árbeállítás szükséges" : "Állapot betöltése"} detail="gpt-4.1-mini · OpenAI standard tokenárak alapján" tone={finopsStatus?.pricing_configured ? "green" : "amber"} />
         <CoverageCard title="Cloud-számla" status="Nincs bekötve" detail="Szolgáltatói számlázási API-hozzáférés nélkül nem olvasható be" tone="amber" />
       </div>
       <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300">
