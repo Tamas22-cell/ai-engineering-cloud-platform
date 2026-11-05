@@ -7,6 +7,7 @@ type Run = { id: string; status: string; hyperparameters: Record<string, unknown
 type Metric = { id: string; name: string; value: number; step: number };
 type Auth = { access_token: string; refresh_token: string };
 type Model = { id: string; name: string; version: string };
+type TrainingDataset = { fileName: string; xValues: number[]; yValues: number[] };
 type InputDrift = { status: string; window_days: number; batch_count: number; sample_count: number; baseline_mean: number; baseline_std: number; observed_mean: number | null; observed_std: number | null; mean_shift_in_std: number | null; std_ratio: number | null; outlier_rate: number | null; signals: string[]; note?: string };
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
@@ -43,7 +44,8 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   const [candidateRun, setCandidateRun] = useState<string | null>(null);
   const [readiness, setReadiness] = useState<{ ready_for_staging_review: boolean; checks: Record<string, boolean> } | null>(null);
   const [comparison, setComparison] = useState<{ id: string; mae: number; rmse: number | null; r2: number | null }[]>([]);
-  const [trainingResult, setTrainingResult] = useState<{ run_id: string; metrics: { mae: number; rmse: number; r2: number } } | null>(null);
+  const [trainingResult, setTrainingResult] = useState<{ run_id: string; dataset?: string; train_samples?: number; test_samples?: number; metrics: { mae: number; rmse: number; r2: number } } | null>(null);
+  const [trainingDataset, setTrainingDataset] = useState<TrainingDataset | null>(null);
   const [datasetVersion, setDatasetVersion] = useState('');
   const [gitCommitSha, setGitCommitSha] = useState('');
   const [hyperparametersText, setHyperparametersText] = useState('{}');
@@ -173,6 +175,27 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
   }
 
 
+  async function loadTrainingCsv(file?: File) {
+    if (!file) return;
+    setTrainingDataset(null);
+    setTrainingResult(null);
+    setError('');
+    try {
+      if (file.size > 200_000) throw new Error('A tréning CSV legfeljebb 200 KB lehet.');
+      const lines = (await file.text()).replace(/^\\uFEFF/, '').split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
+      if (lines.length === 0) throw new Error('A CSV üres.');
+      const rows = lines.map(line => line.split(',').map(value => value.trim()));
+      if (rows.some(row => row.length !== 2)) throw new Error('A tréning CSV pontosan két oszlopból álljon: x,y.');
+      if (rows[0].some(value => !Number.isFinite(Number(value)))) rows.shift();
+      const values = rows.map(row => row.map(Number));
+      if (values.length < 50 || values.length > 2000) throw new Error('50–2000 adatsor szükséges (a fejléc nélkül).');
+      if (values.some(row => row.some(value => !Number.isFinite(value)))) throw new Error('Csak véges numerikus x,y értékek használhatók.');
+      setTrainingDataset({ fileName: file.name, xValues: values.map(row => row[0]), yValues: values.map(row => row[1]) });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'A tréning CSV nem olvasható.');
+    }
+  }
+
   async function trainModel() {
     if (!selected || !canWrite || !auth || training) return;
     setTraining(true);
@@ -182,7 +205,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const submit = (token: string) => fetch(`${API}/mlops/training/experiments/${encodeURIComponent(selected)}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ samples: 200, noise: 0.15, seed: 42, learning_rate: 0.05, epochs: 200 }),
+        body: JSON.stringify({ samples: 200, noise: 0.15, seed: 42, learning_rate: 0.05, epochs: 200, ...(trainingDataset ? { x_values: trainingDataset.xValues, y_values: trainingDataset.yValues } : {}) }),
       });
       let response = await submit(auth.access_token);
       if (response.status === 401) {
@@ -199,7 +222,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         response = await submit(tokens.access_token);
       }
       if (!response.ok) throw new Error(`Tanítás sikertelen: HTTP ${response.status}`);
-      const result = await response.json() as { run_id: string; metrics: { mae: number; rmse: number; r2: number } };
+      const result = await response.json() as { run_id: string; dataset?: string; train_samples?: number; test_samples?: number; metrics: { mae: number; rmse: number; r2: number } };
       setTrainingResult(result);
       const updated = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
       if (updated.ok) setRuns(await updated.json() as Run[]);
@@ -552,12 +575,18 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       </div>
       {!auth && <p className="text-xs text-amber-300">Az aktív modell lekérdezéséhez jelentkezz be.</p>}
       <p className="text-xs text-slate-400">{runs.length} futás (legfeljebb 50)</p>
-      {canWrite && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-cyan-400/20 bg-black/20 p-3">
-        <button type="button" disabled={training} onClick={() => void trainModel()} className="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">{training ? 'Tanítás folyamatban...' : 'Train Model'}</button>
-        <span className="text-xs text-slate-400">Szintetikus regresszió · 200 minta · 200 epoch</span>
+      {canWrite && <div className="space-y-3 rounded-lg border border-cyan-400/20 bg-black/20 p-3">
+        <label className="block text-xs text-slate-300">Regressziós CSV (két numerikus oszlop: x,y; 50–2000 sor; max 200 KB)
+          <input type="file" accept=".csv,text/csv" disabled={training} onChange={event => void loadTrainingCsv(event.target.files?.[0])} className="mt-2 block w-full text-sm" />
+        </label>
+        {trainingDataset && <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-300"><span>{trainingDataset.fileName} · {trainingDataset.xValues.length} minta · nyers adatok csak a tréningkérésben kerülnek továbbításra</span><button type="button" onClick={() => setTrainingDataset(null)} className="rounded border border-white/20 px-2 py-1">CSV törlése</button></div>}
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" disabled={training} onClick={() => void trainModel()} className="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">{training ? 'Tanítás folyamatban...' : 'Train Model'}</button>
+          <span className="text-xs text-slate-400">{trainingDataset ? 'Saját CSV regresszió' : 'Szintetikus regresszió · 200 minta'} · 200 epoch</span>
+        </div>
       </div>}
       {trainingResult && <div role="status" className="rounded border border-emerald-400/30 p-3 text-sm text-emerald-200">
-        Tanítás kész · MAE: {trainingResult.metrics.mae.toFixed(4)} · RMSE: {trainingResult.metrics.rmse.toFixed(4)} · R²: {trainingResult.metrics.r2.toFixed(4)}
+        Tanítás kész · {trainingResult.dataset === 'uploaded_csv' ? 'Saját CSV' : 'Szintetikus adat'} · {trainingResult.train_samples ?? '—'} tanító / {trainingResult.test_samples ?? '—'} tesztminta · MAE: {trainingResult.metrics.mae.toFixed(4)} · RMSE: {trainingResult.metrics.rmse.toFixed(4)} · R²: {trainingResult.metrics.r2.toFixed(4)}
       </div>}
       <div className="space-y-2 rounded-lg border border-white/10 p-3">
         <div className="flex flex-wrap items-center gap-3">
