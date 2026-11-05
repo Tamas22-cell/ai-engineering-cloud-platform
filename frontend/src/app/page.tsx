@@ -230,7 +230,7 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     },
     {
       title: 'Observability',
-      detail: 'RAG workflow timings and saved Agent runs; external Langfuse traces are not connected.',
+      detail: 'RAG timings and saved Agent runs; Langfuse OTLP export is configured with an authenticated delivery probe.',
       state: 'FastAPI request spans · Langfuse export state in Observability',
     },
     {
