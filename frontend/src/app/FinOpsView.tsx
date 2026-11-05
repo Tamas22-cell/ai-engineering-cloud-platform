@@ -96,14 +96,16 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       <div className="grid gap-3 md:grid-cols-3">
         <CoverageCard title="Mért használat" status="Aktív" detail="Egy- és többügynökös RAG-válaszok OpenAI tokenjei" tone="green" />
         <CoverageCard title="Tokenköltség" status={finopsStatus?.pricing_configured ? "Árazás aktív" : finopsStatus ? "Árbeállítás szükséges" : "Állapot betöltése"} detail="gpt-4.1-mini · OpenAI standard tokenárak alapján" tone={finopsStatus?.pricing_configured ? "green" : "amber"} />
-        <CoverageCard title="Render-számla" status="Nincs API-bekötés" detail="A Render számlái a Render Dashboard Billing oldalán érhetők el; a nyilvános API nem kínál számlalekérő végpontot." tone="amber" />
+        <CoverageCard title="Render-számla" status="Számlák a Renderen" detail="A FinOpsban a kézi rögzítés opcionális. A 0 USD-s számlával nincs teendőd." tone="amber" />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Render számlák és aktuális költségek megtekintése:</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">Render Dashboard megnyitása</a></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Hivatalos számlák és aktuális költségek a Render felületén.</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">Render számlák megtekintése (új fül)</a></div>
       {auth && <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.03] p-4">
         <div className="mb-3">
-          <h3 className="font-semibold">Render-számla rögzítése</h3>
-          <p className="mt-1 text-xs text-slate-400">A Render API nem ad számlaadatot; másold át az összeget a Render Dashboard Billing oldaláról. A bejegyzés az alkalmazás adatbázisában marad.</p>
+          <h3 className="font-semibold">FinOpsban rögzített Render-számlák</h3>
+          <p className="mt-1 text-xs text-slate-400">A lista csak a kézzel elmentett másolatokat tartalmazza. A 0 USD-s számlákat nyugodtan kihagyhatod.</p>
         </div>
+        <details>
+          <summary className="mb-3 cursor-pointer text-sm font-medium text-amber-200">Számla kézi rögzítése (opcionális)</summary>
         <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" onSubmit={async event => {
           event.preventDefault(); setRenderEntryLoading(true); setRenderEntryError('');
           try {
@@ -127,6 +129,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
           <div className="flex items-end"><button disabled={renderEntryLoading} className="w-full rounded-lg bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{renderEntryLoading ? 'Mentés…' : 'Render-számla mentése'}</button></div>
           <label className="text-xs text-slate-300 sm:col-span-2 lg:col-span-5">Megjegyzés (opcionális)<input value={renderNote} onChange={event => setRenderNote(event.target.value)} maxLength={500} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
         </form>
+        </details>
         {renderEntryError && <p role="alert" className="mt-3 text-sm text-amber-200">{renderEntryError}</p>}
         <div className="mt-4 overflow-x-auto rounded-lg border border-white/10">
           <table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-white/5 text-slate-300"><tr><th className="p-3">Hónap</th><th className="p-3">Összeg</th><th className="p-3">Számlaszám</th><th className="p-3">Megjegyzés</th><th className="p-3">Művelet</th></tr></thead>
