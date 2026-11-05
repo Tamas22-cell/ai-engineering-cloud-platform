@@ -526,6 +526,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
             <p className={rollbackPreview.eligible_for_activation_review === true ? 'text-emerald-300' : 'text-amber-300'}>{rollbackPreview.eligible_for_activation_review === true ? 'Az ellenőrzés alapján aktiválásra alkalmas.' : 'Az ellenőrzés nem engedélyezi az aktiválást.'}</p>
             <pre className="overflow-x-auto whitespace-pre-wrap text-slate-300">{JSON.stringify(rollbackPreview.checks ?? rollbackPreview, null, 2)}</pre>
             <p className="text-slate-400">Az aktiválás admin művelet; ez az ellenőrzés önmagában nem változtatja meg az aktív verziót.</p>
+            {role === 'admin' && rollbackPreview.eligible_for_activation_review === true && <button type="button" disabled={activeBusy} onClick={() => void activeRequest(rollbackTarget)} className="rounded bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{activeBusy ? 'Aktiválás...' : 'Ellenőrzött verzió aktiválása'}</button>}
           </div>}
         </div>}
       </div>
