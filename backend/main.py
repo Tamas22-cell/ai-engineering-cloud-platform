@@ -1,5 +1,5 @@
 from api.rag import router as rag_router
-from api.agents import router as agents_router
+from api.agents import router as agents_router\nfrom api.finops import router as finops_router
 from contextlib import asynccontextmanager
 import os
 
@@ -125,7 +125,7 @@ app.include_router(admin_router)
 
 app.include_router(agents_router)
 
-app.include_router(rag_router)
+app.include_router(rag_router)\napp.include_router(finops_router)
 
 from api.rag_upload import router as rag_upload_router
 app.include_router(rag_upload_router)
