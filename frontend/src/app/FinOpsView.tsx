@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 type Auth = { access_token: string; refresh_token: string };
 type FinOpsStatus = { pricing_configured: boolean; pricing_model: string; vercel_billing_configured: boolean; render_billing_connected: boolean };
 type CloudBilling = { status?: string; totals: Array<{ currency: string; billed_cost: string }>; services: Array<{ service: string; currency: string; billed_cost: string }>; window_days: number };
+type RenderBillingEntry = { id: string; period: string; amount: string; currency: string; invoice_number: string | null; note: string | null; created_at: string };
 type UsageReport = {
   window_days: number;
   source: string;
@@ -24,6 +25,14 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
   const [cloudBilling, setCloudBilling] = useState<CloudBilling | null>(null);
   const [cloudBillingError, setCloudBillingError] = useState('');
   const [cloudBillingLoading, setCloudBillingLoading] = useState(false);
+  const [renderEntries, setRenderEntries] = useState<RenderBillingEntry[]>([]);
+  const [renderPeriod, setRenderPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [renderAmount, setRenderAmount] = useState('');
+  const [renderCurrency, setRenderCurrency] = useState('USD');
+  const [renderInvoiceNumber, setRenderInvoiceNumber] = useState('');
+  const [renderNote, setRenderNote] = useState('');
+  const [renderEntryError, setRenderEntryError] = useState('');
+  const [renderEntryLoading, setRenderEntryLoading] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -38,6 +47,22 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       .catch(() => { if (active) setFinopsStatus(null); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!auth?.access_token) return;
+    fetch('/backend/finops/render-billing', {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${auth.access_token}` },
+      signal: AbortSignal.timeout(15000),
+    }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || `Render számlaadatok: HTTP ${response.status}`);
+      return data as RenderBillingEntry[];
+    }).then(data => { if (active) setRenderEntries(data); })
+      .catch(err => { if (active) setRenderEntryError(err instanceof Error ? err.message : 'Render-számlaadatok nem érhetők el.'); });
+    return () => { active = false; };
+  }, [auth]);
 
   useEffect(() => {
     let active = true;
@@ -74,6 +99,49 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
         <CoverageCard title="Render-számla" status="Nincs API-bekötés" detail="A Render számlái a Render Dashboard Billing oldalán érhetők el; a nyilvános API nem kínál számlalekérő végpontot." tone="amber" />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Render számlák és aktuális költségek megtekintése:</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">Render Dashboard megnyitása</a></div>
+      {auth && <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.03] p-4">
+        <div className="mb-3">
+          <h3 className="font-semibold">Render-számla rögzítése</h3>
+          <p className="mt-1 text-xs text-slate-400">A Render API nem ad számlaadatot; másold át az összeget a Render Dashboard Billing oldaláról. A bejegyzés az alkalmazás adatbázisában marad.</p>
+        </div>
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" onSubmit={async event => {
+          event.preventDefault(); setRenderEntryLoading(true); setRenderEntryError('');
+          try {
+            const response = await fetch('/backend/finops/render-billing', {
+              method: 'POST', cache: 'no-store',
+              headers: { Authorization: 'Bearer ' + auth.access_token, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ period: renderPeriod, amount: renderAmount, currency: renderCurrency, invoice_number: renderInvoiceNumber, note: renderNote }),
+              signal: AbortSignal.timeout(20000),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.detail || `Render számla mentése: HTTP ${response.status}`);
+            setRenderEntries(current => [data as RenderBillingEntry, ...current]);
+            setRenderAmount(''); setRenderInvoiceNumber(''); setRenderNote('');
+          } catch (err) { setRenderEntryError(err instanceof Error ? err.message : 'A Render-számla mentése nem sikerült.'); }
+          finally { setRenderEntryLoading(false); }
+        }}>
+          <label className="text-xs text-slate-300">Számlázási hónap<input required type="month" value={renderPeriod} onChange={event => setRenderPeriod(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
+          <label className="text-xs text-slate-300">Összeg<input required type="number" min="0" step="0.01" value={renderAmount} onChange={event => setRenderAmount(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
+          <label className="text-xs text-slate-300">Pénznem<select value={renderCurrency} onChange={event => setRenderCurrency(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white"><option>USD</option><option>EUR</option><option>HUF</option></select></label>
+          <label className="text-xs text-slate-300">Számlaszám (opcionális)<input value={renderInvoiceNumber} onChange={event => setRenderInvoiceNumber(event.target.value)} maxLength={100} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
+          <div className="flex items-end"><button disabled={renderEntryLoading} className="w-full rounded-lg bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{renderEntryLoading ? 'Mentés…' : 'Render-számla mentése'}</button></div>
+          <label className="text-xs text-slate-300 sm:col-span-2 lg:col-span-5">Megjegyzés (opcionális)<input value={renderNote} onChange={event => setRenderNote(event.target.value)} maxLength={500} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
+        </form>
+        {renderEntryError && <p role="alert" className="mt-3 text-sm text-amber-200">{renderEntryError}</p>}
+        <div className="mt-4 overflow-x-auto rounded-lg border border-white/10">
+          <table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-white/5 text-slate-300"><tr><th className="p-3">Hónap</th><th className="p-3">Összeg</th><th className="p-3">Számlaszám</th><th className="p-3">Megjegyzés</th><th className="p-3">Művelet</th></tr></thead>
+            <tbody>{renderEntries.map(entry => <tr key={entry.id} className="border-t border-white/10 text-slate-200"><td className="p-3">{entry.period}</td><td className="p-3">{Number(entry.amount).toFixed(2)} {entry.currency}</td><td className="p-3">{entry.invoice_number || '—'}</td><td className="p-3">{entry.note || '—'}</td><td className="p-3"><button type="button" onClick={async () => {
+              try {
+                const response = await fetch('/backend/finops/render-billing/' + encodeURIComponent(entry.id), { method: 'DELETE', headers: { Authorization: 'Bearer ' + auth.access_token }, signal: AbortSignal.timeout(15000) });
+                if (!response.ok) throw new Error();
+                setRenderEntries(current => current.filter(row => row.id !== entry.id));
+              } catch { setRenderEntryError('A számlabejegyzés törlése nem sikerült.'); }
+            }} className="text-rose-300 hover:text-rose-200">Törlés</button></td></tr>)}
+              {renderEntries.length === 0 && <tr><td className="p-3 text-slate-400" colSpan={5}>Még nincs rögzített Render-számla.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>}
       <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300">
         <strong className="text-cyan-200">Mit mér ez az oldal?</strong>
         <p className="mt-1">Sikeres, bejelentkezett RAG-válaszgenerálások tényleges tokenhasználatát az elmúlt 30 napból. Az embedding-hívások és a szolgáltatói infrastruktúra költségei külön mérés nélkül nem jelennek meg itt.</p>
