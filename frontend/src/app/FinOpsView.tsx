@@ -50,6 +50,15 @@ export default function FinOpsView({ auth }: { auth: Auth | null }) {
         <p className="mt-2 text-sm text-slate-400">A kimutatás a sikeres, bejelentkezett egy- és többügynökös RAG-válaszgenerálások OpenAI tokenhasználatát méri. Az embedding-hívásokat és a felhőszolgáltatói számlázást nem tartalmazza.</p>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-3">
+        <CoverageCard title="Mért használat" status="Aktív" detail="Egy- és többügynökös RAG-válaszok OpenAI tokenjei" tone="green" />
+        <CoverageCard title="Tokenköltség" status={report?.priced_requests ? "Árazva" : "Árbeállítás szükséges"} detail="OPENAI_INPUT_USD_PER_1M és OPENAI_OUTPUT_USD_PER_1M alapján számolva" tone={report?.priced_requests ? "green" : "amber"} />
+        <CoverageCard title="Cloud-számla" status="Nincs bekötve" detail="Render és Vercel számlázási adatok nem részei ennek a kimutatásnak" tone="amber" />
+      </div>
+      <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300">
+        <strong className="text-cyan-200">Mit mér ez az oldal?</strong>
+        <p className="mt-1">Sikeres, bejelentkezett RAG-válaszgenerálások tényleges tokenhasználatát az elmúlt 30 napból. Az embedding-hívások és a szolgáltatói infrastruktúra költségei külön mérés nélkül nem jelennek meg itt.</p>
+      </div>
       {!auth && <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-amber-200">A személyes kimutatás megtekintéséhez jelentkezz be az Agents vagy RAG oldalon.</div>}
       {loading && <p className="text-sm text-slate-400">Használati adatok betöltése…</p>}
       {error && <div role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/5 p-4 text-sm text-rose-200">{error}</div>}
@@ -78,4 +87,15 @@ export default function FinOpsView({ auth }: { auth: Auth | null }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4"><div className="text-xs text-slate-400">{label}</div><div className="mt-2 text-xl font-semibold text-cyan-200">{value}</div></div>;
+}
+
+function CoverageCard({ title, status, detail, tone }: { title: string; status: string; detail: string; tone: 'green' | 'amber' }) {
+  const styles = tone === 'green'
+    ? 'border-emerald-400/30 bg-emerald-400/[0.05] text-emerald-200'
+    : 'border-amber-400/30 bg-amber-400/[0.05] text-amber-200';
+  return <div className={`rounded-xl border p-4 ${styles}`}>
+    <div className="text-xs uppercase tracking-wide opacity-80">{title}</div>
+    <div className="mt-2 text-lg font-semibold">{status}</div>
+    <p className="mt-1 text-xs leading-relaxed text-slate-300">{detail}</p>
+  </div>;
 }
