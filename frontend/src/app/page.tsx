@@ -105,7 +105,7 @@ export default function HomePage() {
         <div className="p-4 border-t border-white/5">
           <div className="flex items-center gap-2 text-xs text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Development preview · unverified
+            Production frontend · live checks by module
           </div>
         </div>
       </aside>
@@ -118,7 +118,7 @@ export default function HomePage() {
           </h1>
 
           <div className="flex items-center gap-4 text-sm text-[#9AA3AE]">
-            <span>Portfolio preview</span>
+            <span>AI Engineering workspace</span>
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-violet-500" />
           </div>
         </header>
@@ -191,18 +191,18 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
   const modules = [
     {
       title: 'AI Agent Orchestration',
-      detail: 'Tool calling, workflow orchestration, guardrails',
-      state: 'Implemented in repository · runtime unverified',
+      detail: 'Authenticated chat modes and saved workflow runs; availability is shown in Agents.',
+      state: 'Available in Agents · sign-in required',
     },
     {
       title: 'RAG & Knowledge Retrieval',
-      detail: 'Upload, chunking, indexing and retrieval API; evaluation not verified',
-      state: 'Implemented in repository · runtime unverified',
+      detail: 'PDF upload, indexing and source-linked retrieval; account required.',
+      state: 'Available in RAG · sign-in required',
     },
     {
       title: 'MLOps',
-      detail: 'Registry, runs, metric summaries and threshold checks; drift monitoring pending',
-      state: 'Implemented in repository · runtime unverified',
+      detail: 'Training, artifact versions, active inference and rollback preflight; drift monitoring pending.',
+      state: 'Available in MLOps · activation admin-only',
     },
     {
       title: 'Data Engineering · CSV Quality Profiler',
@@ -211,18 +211,18 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     },
     {
       title: 'Cloud & CI/CD',
-      detail: 'GitHub Actions and Docker configs; Kubernetes / Terraform not verified',
-      state: 'In progress · CI result unverified',
+      detail: 'Live GitHub Actions runs; Kubernetes / Terraform not verified.',
+      state: 'Partly connected · open DevOps for current runs',
     },
     {
       title: 'Observability',
-      detail: 'OpenTelemetry and Langfuse production traces',
-      state: 'Unverified',
+      detail: 'RAG workflow timings and saved Agent runs; external Langfuse traces are not connected.',
+      state: 'In-app workflow data · external tracing not connected',
     },
     {
       title: 'Security & Access',
-      detail: 'JWT authentication and RBAC implemented; production access tests pending',
-      state: 'Implemented in repository · production unverified',
+      detail: 'JWT identity and backend roles shown after sign-in; deeper security audit pending.',
+      state: 'In-app checks available · deeper audit pending',
     },
     {
       title: 'FinOps',
@@ -249,7 +249,7 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     <div className="space-y-6 max-w-7xl">
       <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-r from-cyan-500/10 to-violet-500/10 p-6">
         <span className="text-xs uppercase tracking-widest text-cyan-300">
-          Tamas Nemeth · Engineering portfolio
+          Live engineering workspace
         </span>
 
         <h2 className="text-3xl font-semibold mt-3">
@@ -257,9 +257,7 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
         </h2>
 
         <p className="text-[#B8C6D6] mt-3 leading-relaxed">
-          Public frontend deployed on Vercel. Backend liveness and database readiness
-          are checked separately. Agent, RAG and MLOps code exists in GitHub;
-          production API integrations and monitoring remain unverified.
+          Use this workspace for agent workflows, private PDF RAG, model training and versioning, and CSV quality analysis. Each module shows its own API and account status; sample data is never presented as production telemetry.
         </p>
 
         <a
