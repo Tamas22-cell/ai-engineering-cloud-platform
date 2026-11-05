@@ -650,6 +650,22 @@ function DevOpsView() {
           <a className="text-sm text-cyan-300 underline" href="https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions" target="_blank" rel="noopener noreferrer">Összes futás megnyitása</a>
         </div>
         <p className="text-xs text-slate-400" role="status">{ciStatus === 'loading' ? 'CI-állapot betöltése…' : ciStatus === 'available' ? 'GitHubtól lekért, valós workflow-adatok.' : 'A GitHub Actions állapota most nem kérdezhető le.'}</p>
+        {ciStatus === 'available' && ciRuns.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="GitHub Actions futások összesítése">
+            {[
+              { label: 'Lekért futások', value: ciRuns.length, tone: 'text-slate-100' },
+              { label: 'Sikeres', value: ciRuns.filter(run => run.status === 'completed' && run.conclusion === 'success').length, tone: 'text-emerald-300' },
+              { label: 'Sikertelen', value: ciRuns.filter(run => run.status === 'completed' && run.conclusion === 'failure').length, tone: 'text-rose-300' },
+              { label: 'Folyamatban', value: ciRuns.filter(run => run.status !== 'completed').length, tone: 'text-cyan-300' },
+            ].map(item => (
+              <div key={item.label} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                <div className="text-xs text-slate-400">{item.label}</div>
+                <div className={`mt-1 text-2xl font-semibold ${item.tone}`}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-slate-500">Az összesítés kizárólag a GitHub API-tól lekért legutóbbi 5 futásra vonatkozik, nem a teljes előzményre.</p>
         {ciRuns.length > 0 && <div className="divide-y divide-white/10 rounded-lg border border-white/10">
           {ciRuns.map(run => {
             const label = run.status === 'completed' ? (run.conclusion === 'success' ? 'Sikeres' : run.conclusion === 'failure' ? 'Sikertelen' : run.conclusion ?? 'Befejeződött') : run.status === 'in_progress' ? 'Fut' : run.status;
