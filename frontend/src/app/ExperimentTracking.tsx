@@ -205,7 +205,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const submit = (token: string) => fetch(`${API}/mlops/training/experiments/${encodeURIComponent(selected)}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ samples: 200, noise: 0.15, seed: 42, learning_rate: 0.05, epochs: 200, ...(trainingDataset ? { x_values: trainingDataset.xValues, y_values: trainingDataset.yValues } : {}) }),
+        body: JSON.stringify({ samples: 200, noise: 0.15, seed: 42, learning_rate: 0.05, epochs: 200, ...(trainingDataset ? { samples: trainingDataset.xValues.length, x_values: trainingDataset.xValues, y_values: trainingDataset.yValues } : {}) }),
       });
       let response = await submit(auth.access_token);
       if (response.status === 401) {
