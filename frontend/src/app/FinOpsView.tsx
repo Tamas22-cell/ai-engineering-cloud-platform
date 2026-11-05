@@ -47,7 +47,7 @@ export default function FinOpsView({ auth }: { auth: Auth | null }) {
       <div>
         <p className="text-xs uppercase tracking-widest text-cyan-300">FinOps · tényleges használat</p>
         <h2 className="mt-2 text-2xl font-semibold">LLM-használat az elmúlt 30 napban</h2>
-        <p className="mt-2 text-sm text-slate-400">A kimutatás a sikeres, bejelentkezett egy- és többügynökös RAG-válaszgenerálások OpenAI tokenhasználatát méri. Az embedding-hívásokat és a felhőszolgáltatói számlázást nem tartalmazza.</p>
+        <p className="mt-2 text-sm text-slate-400">A személyes, 30 napos LLM-használat és az elszámolás lefedettsége.</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
