@@ -17,6 +17,8 @@ type HealthResponse = {
   database?: string;
 };
 
+type IntegrationHealth = { redis: 'connected' | 'disconnected'; langfuse: 'configured' | 'not_configured' };
+
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 const navItems = [
@@ -217,7 +219,7 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     {
       title: 'Observability',
       detail: 'RAG workflow timings and saved Agent runs; external Langfuse traces are not connected.',
-      state: 'In-app workflow data · external tracing not connected',
+      state: 'FastAPI request spans · Langfuse export state in Observability',
     },
     {
       title: 'Security & Access',
@@ -449,6 +451,7 @@ type AgentRunMonitor = { id: string; task: string; status: string; duration_ms: 
 function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?: Record<string, number>; usage?: { model?: string; total_tokens?: number; estimated_cost_usd?: string | null }; verified?: boolean } | null; auth: SharedAuth | null }) {
   const [agentRuns, setAgentRuns] = useState<AgentRunMonitor[]>([]);
   const [monitorStatus, setMonitorStatus] = useState('Bejelentkezés szükséges az Agent Monitoring előzményekhez.');
+  const [traceExportStatus, setTraceExportStatus] = useState('Checking...');
   useEffect(() => {
     if (!auth) { setAgentRuns([]); setMonitorStatus('Bejelentkezés szükséges az Agent Monitoring előzményekhez.'); return; }
     let cancelled = false;
@@ -466,10 +469,30 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
     const interval = window.setInterval(() => void refresh(), 30000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [auth]);
+  useEffect(() => {
+    let cancelled = false;
+    async function checkTraceExport() {
+      try {
+        const response = await fetch('/backend/health/integrations', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json() as IntegrationHealth;
+        if (!cancelled) setTraceExportStatus(data.langfuse === 'configured' ? 'Kulcsok konfigurálva · fogadás még nem igazolt' : 'Nincs konfigurálva');
+      } catch {
+        if (!cancelled) setTraceExportStatus('Állapot nem kérdezhető le');
+      }
+    }
+    void checkTraceExport();
+    return () => { cancelled = true; };
+  }, []);
   const steps = ['planner', 'retriever', 'synthesizer', 'reviewer'];
   return <section className="max-w-5xl space-y-5">
     <div className="rounded-xl border border-cyan-500/20 bg-white/5 p-5"><h2 className="text-xl font-semibold">Multi-Agent RAG Observability</h2><p className="mt-2 text-sm text-slate-400">A legutóbbi RAG-kérdés valós LangGraph futási adatai ebben a böngészőmunkamenetben. Nincs szimulált telemetria.</p></div>
     <LiveApiObservability />
+    <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+      <h3 className="font-semibold">Langfuse trace export</h3>
+      <p className="mt-2 text-sm text-cyan-200" role="status">{traceExportStatus}</p>
+      <p className="mt-1 text-xs text-slate-400">FastAPI request spanek exportálhatók. A beállított kulcs nem bizonyítja, hogy a Langfuse fogadta is a trace-eket. Kérés törzse és dokumentumszöveg nincs exportálva.</p>
+    </div>
     <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
       <h3 className="font-semibold">Agent Monitoring · mentett workflow futások</h3>
       <p className="text-xs text-slate-400">Valós, felhasználóhoz kötött PostgreSQL futási előzmények · automatikus frissítés 30 másodpercenként.</p>
@@ -594,6 +617,8 @@ function DevOpsView() {
 function InfrastructureView() {
   const [api, setApi] = useState<'checking' | 'online' | 'unreachable'>('checking');
   const [db, setDb] = useState('Checking...');
+  const [redis, setRedis] = useState('Checking...');
+  const [langfuse, setLangfuse] = useState('Checking...');
   const [checkedAt, setCheckedAt] = useState('');
   const [refresh, setRefresh] = useState(0);
 
@@ -620,7 +645,21 @@ function InfrastructureView() {
         if (!cancelled) setCheckedAt(new Date().toLocaleTimeString());
       }
     }
+    async function checkIntegrations() {
+      try {
+        const response = await fetch('/backend/health/integrations', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json() as IntegrationHealth;
+        if (!cancelled) {
+          setRedis(data.redis === 'connected' ? 'Connected' : 'Disconnected');
+          setLangfuse(data.langfuse === 'configured' ? 'Keys configured · export not verified' : 'Not configured');
+        }
+      } catch {
+        if (!cancelled) { setRedis('Unavailable'); setLangfuse('Status unavailable'); }
+      }
+    }
     void check();
+    void checkIntegrations();
     return () => { cancelled = true; };
   }, [refresh]);
 
@@ -634,7 +673,8 @@ function InfrastructureView() {
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Vercel / Frontend</h3><p className="mt-2 text-xl font-semibold">Page loaded</p><p className="mt-2 text-xs text-slate-400">Ez csak az aktuális oldal betöltését igazolja, nem a deployment státuszát.</p></div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Render / FastAPI</h3><p className="mt-2 text-xl font-semibold" role="status">{api === 'checking' ? 'Checking...' : api === 'online' ? 'Online' : 'Unreachable'}</p><p className="mt-2 text-xs text-slate-400">/backend/health/live</p></div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">PostgreSQL</h3><p className="mt-2 text-xl font-semibold" role="status">{db}</p><p className="mt-2 text-xs text-slate-400">/backend/health/ready</p></div>
-        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Redis</h3><p className="mt-2 text-xl font-semibold">Not verified</p><p className="mt-2 text-xs text-slate-400">Nincs publikus Redis readiness ellenőrzés. A szolgáltatás állapotát nem találgatjuk.</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Redis</h3><p className="mt-2 text-xl font-semibold" role="status">{redis}</p><p className="mt-2 text-xs text-slate-400">Valós PING a backendből; a kapcsolati adatok nem kerülnek a böngészőbe.</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Langfuse exporter</h3><p className="mt-2 text-xl font-semibold" role="status">{langfuse}</p><p className="mt-2 text-xs text-slate-400">A kulcsok megléte konfigurációt jelez, nem bizonyítja a trace-ek fogadását.</p></div>
       </div>
       <p className="text-xs text-slate-400">{checkedAt ? `Utolsó ellenőrzés: ${checkedAt}` : 'Ellenőrzés folyamatban'}. A hálózati hiba önmagában nem bizonyítja a leállást.</p>
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
