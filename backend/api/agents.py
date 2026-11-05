@@ -26,7 +26,10 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(data: ChatRequest):
+async def chat(
+    data: ChatRequest,
+    user=Depends(get_current_user),
+):
     result = await agent.ainvoke({
         "message": data.message,
         "response": "",
