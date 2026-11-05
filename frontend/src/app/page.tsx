@@ -235,8 +235,8 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     },
     {
       title: 'Security & Access',
-      detail: 'JWT identity and backend roles shown after sign-in; deeper security audit pending.',
-      state: 'In-app checks available · deeper audit pending',
+      detail: 'JWT authentication and backend-enforced viewer, developer and admin roles; security review still pending.',
+      state: 'JWT/RBAC implemented · privileged actions role-gated',
     },
     {
       title: 'FinOps',
