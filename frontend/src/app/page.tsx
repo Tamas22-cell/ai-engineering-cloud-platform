@@ -161,6 +161,7 @@ export default function HomePage() {
 function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
   const [databaseStatus, setDatabaseStatus] = useState('Unknown');
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationHealth | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -184,6 +185,15 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
         setDatabaseStatus(ready.ok && data.status === 'ready' && data.database === 'connected' ? 'Connected' : 'Not ready');
       } catch {
         if (active) setDatabaseStatus('Unavailable');
+      }
+
+      try {
+        const integrations = await fetch('/backend/health/integrations', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+        if (!integrations.ok) throw new Error(`HTTP ${integrations.status}`);
+        const result = await integrations.json() as IntegrationHealth;
+        if (active) setIntegrationStatus(result);
+      } catch {
+        if (active) setIntegrationStatus(null);
       }
     }
 
@@ -291,9 +301,9 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
 
         <MetricCard
           label="Langfuse traces"
-          value="Unverified"
-          detail="No production export configured"
-          accent="amber"
+          value={integrationStatus ? integrationStatus.langfuse === 'configured' ? 'Configured' : 'Not configured' : 'Checking...'}
+          detail={integrationStatus?.langfuse === 'configured' ? 'FastAPI OTLP export enabled · trace delivery not yet confirmed' : 'Live integration health is checked by the backend'}
+          accent={integrationStatus?.langfuse === 'configured' ? 'cyan' : 'amber'}
         />
 
         <MetricCard
