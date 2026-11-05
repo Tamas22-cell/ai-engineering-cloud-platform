@@ -147,7 +147,7 @@ export default function HomePage() {
           {active === 'security' && (
             <SecurityView auth={auth} setAuth={setAuth} />
           )}
-          {active === 'skills' && <SkillsView />}
+          {active === 'skills' && <SkillsView onNavigate={setActive} />}
         </main>
       </div>
     </div>
@@ -412,51 +412,39 @@ function Placeholder({
   );
 }
 
-function SkillsView() {
+function SkillsView({ onNavigate }: { onNavigate: (page: string) => void }) {
   const skills = [
-    { name: 'Python Backend', status: 'In Progress', phase: 'Phase 1' },
-    { name: 'Cloud Engineering (Azure)', status: 'Planned', phase: 'Phase 5' },
-    { name: 'Docker / Kubernetes', status: 'Planned', phase: 'Phase 2 / 6' },
-    { name: 'CI/CD', status: 'Planned', phase: 'Phase 2' },
-    { name: 'AI Agent Development', status: 'Planned', phase: 'Phase 3' },
-    { name: 'RAG Engineering', status: 'Planned', phase: 'Phase 3' },
-    { name: 'MLOps', status: 'Planned', phase: 'Phase 4' },
-    { name: 'Testing & Security', status: 'In Progress', phase: 'Phase 1–2' },
+    { name: 'Python Backend', detail: 'FastAPI szolgáltatás, hitelesítés és valós health ellenőrzés.', status: 'API állapot élő', page: 'overview' },
+    { name: 'Cloud Infrastructure', detail: 'Vercel frontend, Render API és PostgreSQL állapotellenőrzés.', status: 'Részben összekötve', page: 'infra' },
+    { name: 'Docker / Kubernetes', detail: 'Docker konfiguráció elérhető; Kubernetes állapot nincs igazolva.', status: 'Részben kész', page: 'devops' },
+    { name: 'CI/CD', detail: 'GitHub Actions legutóbbi futásai közvetlenül megjelennek.', status: 'Élő futások', page: 'devops' },
+    { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: 'Bejelentkezés kell', page: 'agents' },
+    { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: 'Bejelentkezés kell', page: 'rag' },
+    { name: 'MLOps', detail: 'Tanítás, artifact-verziók, aktív predikció és ellenőrzött visszaállítás.', status: 'Admin aktiválás', page: 'mlops' },
+    { name: 'Security & Access', detail: 'JWT-fiók és backend által visszaadott szerepkör; mély audit külön feladat.', status: 'Részben kész', page: 'security' },
   ];
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <p className="text-sm text-[#9AA3AE]">
-        Competencies tracked by completed technical tasks and verified tests,
-        not invented percentages.
-      </p>
-
+    <section className="max-w-4xl space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold">Platform funkciók és készültség</h2>
+        <p className="mt-1 text-sm text-[#9AA3AE]">A lista a jelenlegi alkalmazás funkcióit mutatja. A bejelentkezéshez vagy külső szolgáltatáshoz kötött részeket külön jelöljük.</p>
+      </div>
       <div className="rounded-xl border border-white/5 bg-[#11151C] divide-y divide-white/5">
-        {skills.map((skill) => (
-          <div
-            key={skill.name}
-            className="flex items-center justify-between px-4 py-3 text-sm"
-          >
-            <div>
+        {skills.map(skill => (
+          <div key={skill.name} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <div className="font-medium">{skill.name}</div>
-              <div className="text-xs text-[#9AA3AE]">
-                {skill.phase}
-              </div>
+              <div className="mt-1 text-xs text-[#9AA3AE]">{skill.detail}</div>
             </div>
-
-            <span
-              className={`text-xs px-2 py-0.5 rounded ${
-                skill.status === 'In Progress'
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'bg-white/5 text-[#9AA3AE]'
-              }`}
-            >
-              {skill.status}
-            </span>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || skill.status === 'API állapot élő' ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
+              <button type="button" onClick={() => onNavigate(skill.page)} className="rounded border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/5">Megnyitás</button>
+            </div>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 type AgentRunMonitor = { id: string; task: string; status: string; duration_ms: number; created_at: string; step_timings: Record<string, number> };
