@@ -165,6 +165,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
                   vercel_token_invalid: 'A Vercel nem fogadta el a szerveren beállított tokent.',
                   vercel_billing_forbidden: 'A Vercel-token nem fér hozzá a csapat számlázásához.',
                   vercel_rate_limited: 'A Vercel átmenetileg korlátozza a lekéréseket. Próbáld újra később.',
+                  vercel_billing_not_found: 'A Vercel nem találta a számlázási erőforrást a szerveren beállított csapathoz (404).',
                   vercel_billing_unavailable: 'A Vercel számlázási szolgáltatása hibát jelzett.',
                   vercel_billing_timeout: 'A Vercel számlázási lekérése túllépte az időkorlátot.',
                   vercel_billing_unreadable: 'A szerver nem tudta beolvasni a Vercel számlázási adatait.',
