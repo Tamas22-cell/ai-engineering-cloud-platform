@@ -148,6 +148,9 @@ export default function HomePage() {
           {active === 'observability' && (
             <ObservabilityView telemetry={ragTelemetry} auth={auth} />
           )}
+          {active === 'finops' && authRestored && (
+            <FinOpsView auth={auth} />
+          )}
           {active === 'security' && (
             <SecurityView auth={auth} setAuth={setAuth} />
           )}
