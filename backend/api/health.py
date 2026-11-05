@@ -1,9 +1,13 @@
+import os
+
+import redis.asyncio as redis
 import structlog
 
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from core.database import get_db
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -42,3 +46,34 @@ async def readiness(
             "status": "not_ready",
             "database": "disconnected",
         }
+
+
+@router.get("/integrations")
+async def integration_health() -> dict[str, str]:
+    """Report dependency connectivity without exposing connection details or secrets."""
+    client = None
+    try:
+        client = redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        await client.ping()
+        redis_status = "connected"
+    except Exception:
+        redis_status = "disconnected"
+    finally:
+        if client is not None:
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+
+    langfuse_configured = bool(
+        os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY")
+    )
+    return {
+        "redis": redis_status,
+        "langfuse": "configured" if langfuse_configured else "not_configured",
+    }
