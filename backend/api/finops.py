@@ -86,6 +86,18 @@ async def get_cloud_billing(user=Depends(get_current_user)):
             "render_billing": "not_available_via_connected_api",
         }
     except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404 and "costs_not_found" in exc.response.text:
+            return {
+                "provider": "vercel",
+                "status": "no_charges_returned",
+                "window_days": 30,
+                "from": params["from"],
+                "to": params["to"],
+                "totals": [],
+                "daily": [],
+                "services": [],
+                "render_billing": "not_available_via_connected_api",
+            }
         raise HTTPException(status_code=502, detail="Vercel billing API rejected the configured token or team scope") from exc
     except (httpx.HTTPError, json.JSONDecodeError, InvalidOperation, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Vercel billing data could not be read") from exc
