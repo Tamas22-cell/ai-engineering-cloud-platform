@@ -16,7 +16,7 @@ type UsageReport = {
   note: string;
 };
 
-export default function FinOpsView({ auth }: { auth: Auth | null }) {
+export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; onNavigate: (page: string) => void }) {
   const [report, setReport] = useState<UsageReport | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -53,13 +53,13 @@ export default function FinOpsView({ auth }: { auth: Auth | null }) {
       <div className="grid gap-3 md:grid-cols-3">
         <CoverageCard title="Mért használat" status="Aktív" detail="Egy- és többügynökös RAG-válaszok OpenAI tokenjei" tone="green" />
         <CoverageCard title="Tokenköltség" status={report?.priced_requests ? "Árazva" : "Árbeállítás szükséges"} detail="OPENAI_INPUT_USD_PER_1M és OPENAI_OUTPUT_USD_PER_1M alapján számolva" tone={report?.priced_requests ? "green" : "amber"} />
-        <CoverageCard title="Cloud-számla" status="Nincs bekötve" detail="Render és Vercel számlázási adatok nem részei ennek a kimutatásnak" tone="amber" />
+        <CoverageCard title="Cloud-számla" status="Nincs bekötve" detail="Szolgáltatói számlázási API-hozzáférés nélkül nem olvasható be" tone="amber" />
       </div>
       <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300">
         <strong className="text-cyan-200">Mit mér ez az oldal?</strong>
         <p className="mt-1">Sikeres, bejelentkezett RAG-válaszgenerálások tényleges tokenhasználatát az elmúlt 30 napból. Az embedding-hívások és a szolgáltatói infrastruktúra költségei külön mérés nélkül nem jelennek meg itt.</p>
       </div>
-      {!auth && <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-amber-200">A személyes kimutatás megtekintéséhez jelentkezz be az Agents vagy RAG oldalon.</div>}
+      {!auth && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-amber-200"><span>A személyes kimutatás megtekintéséhez jelentkezz be.</span><button type="button" onClick={() => onNavigate('agents')} className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950 hover:bg-amber-200">Belépés az Agents oldalon</button></div>}
       {loading && <p className="text-sm text-slate-400">Használati adatok betöltése…</p>}
       {error && <div role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/5 p-4 text-sm text-rose-200">{error}</div>}
       {report && <>
