@@ -182,7 +182,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     setError('');
     try {
       if (file.size > 200_000) throw new Error('A tréning CSV legfeljebb 200 KB lehet.');
-      const lines = (await file.text()).replace(/^\\uFEFF/, '').split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
+      const lines = (await file.text()).replace(/^\uFEFF/, '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
       if (lines.length === 0) throw new Error('A CSV üres.');
       const rows = lines.map(line => line.split(',').map(value => value.trim()));
       if (rows.some(row => row.length !== 2)) throw new Error('A tréning CSV pontosan két oszlopból álljon: x,y.');
