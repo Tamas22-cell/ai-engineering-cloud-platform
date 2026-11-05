@@ -527,6 +527,7 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
 function DevOpsView() {
   const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [database, setDatabase] = useState('Checking...');
+  const [integrations, setIntegrations] = useState<IntegrationHealth | null>(null);
   const [checkedAt, setCheckedAt] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [ciRuns, setCiRuns] = useState<CiRun[]>([]);
@@ -557,7 +558,7 @@ function DevOpsView() {
           if (!cancelled) setIntegrations(null);
         }
       } catch {
-        if (!cancelled) { setStatus('offline'); setDatabase('Unavailable'); }
+        if (!cancelled) { setStatus('offline'); setDatabase('Unavailable'); setIntegrations(null); }
       } finally {
         if (!cancelled) setCheckedAt(new Date().toLocaleTimeString());
       }
