@@ -100,7 +100,7 @@ jobs:
         run: PYTHONPATH=backend pytest -q tests --junitxml=pytest-results.xml
       - name: Upload backend test report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: backend-pytest-results
           path: pytest-results.xml
