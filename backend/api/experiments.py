@@ -19,6 +19,9 @@ router = APIRouter(prefix="/mlops/experiments", tags=["MLOps Experiments"])
 
 
 class ExperimentCreate(BaseModel):
+    # model_id is a domain field, not a Pydantic model namespace.
+    model_config = {"protected_namespaces": ()}
+
     name: str = Field(min_length=1, max_length=160)
     model_id: str
 
