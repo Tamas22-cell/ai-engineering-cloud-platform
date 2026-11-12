@@ -1,15 +1,14 @@
 from api.rag import router as rag_router
 from api.agents import router as agents_router
-from api.finops import fetch_vercel_billing, router as finops_router
-from contextlib import asynccontextmanager, suppress
-import asyncio
+from api.finops import router as finops_router
+from contextlib import asynccontextmanager
 import os
 
 import structlog
 from time import perf_counter
 from uuid import uuid4
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,19 +18,6 @@ from core.langfuse_tracing import configure_langfuse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 logger = structlog.get_logger()
-
-
-async def log_vercel_billing_readiness():
-    try:
-        result = await fetch_vercel_billing()
-    except HTTPException as exc:
-        code = exc.detail.get("code") if isinstance(exc.detail, dict) else "not_configured"
-        logger.warning("vercel_billing_probe", outcome=code)
-    except Exception as exc:
-        logger.warning("vercel_billing_probe", outcome="unexpected_error", error_type=type(exc).__name__)
-    else:
-        outcome = "empty_period" if not result["totals"] else "available"
-        logger.info("vercel_billing_probe", outcome=outcome)
 
 
 @asynccontextmanager
@@ -68,16 +54,7 @@ async def lifespan(app: FastAPI):
         "application_startup",
         environment=settings.environment,
     )
-    billing_probe = None
-    if settings.environment == "production" and os.getenv("VERCEL_ACCESS_TOKEN") and os.getenv("VERCEL_TEAM_ID"):
-        billing_probe = asyncio.create_task(log_vercel_billing_readiness())
-    try:
-        yield
-    finally:
-        if billing_probe is not None:
-            billing_probe.cancel()
-            with suppress(asyncio.CancelledError):
-                await billing_probe
+    yield
     if tracer_provider is not None:
         tracer_provider.shutdown()
     logger.info("application_shutdown")
