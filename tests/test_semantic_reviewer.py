@@ -74,3 +74,41 @@ async def test_semantic_reviewer_rejects_ambiguous_first_verdict():
         "A claim [1].", [{"text": "Evidence."}], client=client,
     ) is False
     client.responses.create.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_semantic_reviewer_uses_safe_token_budget_on_both_passes():
+    client = SimpleNamespace(responses=SimpleNamespace(create=AsyncMock(
+        side_effect=[
+            SimpleNamespace(output_text="UNSUPPORTED"),
+            SimpleNamespace(output_text="SUPPORTED"),
+        ],
+    )))
+    assert await verify_answer_support(
+        "The documented endpoint returns a token [1].",
+        [{"text": "The documented endpoint returns an access token."}],
+        client=client,
+    ) is True
+    assert client.responses.create.await_count == 2
+    for call in client.responses.create.await_args_list:
+        assert call.kwargs["max_output_tokens"] >= 64
+        assert call.kwargs["model"] == "gpt-4.1-mini"
+
+
+@pytest.mark.asyncio
+async def test_semantic_reviewer_propagates_provider_bad_request():
+    from openai import BadRequestError
+    import httpx
+
+    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+    response = httpx.Response(400, request=request)
+    error = BadRequestError(
+        "Invalid request", response=response,
+        body={"error": {"code": "invalid_request_error"}},
+    )
+    client = SimpleNamespace(responses=SimpleNamespace(create=AsyncMock(side_effect=error)))
+    with pytest.raises(BadRequestError):
+        await verify_answer_support(
+            "Documented fact [1].", [{"text": "Documented fact."}], client=client,
+        )
+    client.responses.create.assert_awaited_once()
