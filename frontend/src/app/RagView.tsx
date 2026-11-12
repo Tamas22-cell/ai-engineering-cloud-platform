@@ -67,6 +67,7 @@ export default function RagView({ onTelemetry, auth, setAuth }: { onTelemetry?: 
       const detail = typeof body?.detail === 'string' ? body.detail : `HTTP ${response.status}`;
       throw new Error(detail);
     }
+    if (response.status === 204) return null;
     return response.json();
   }, [auth, setAuth]);
 
