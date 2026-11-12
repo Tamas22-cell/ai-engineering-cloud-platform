@@ -2,6 +2,7 @@
 from decimal import Decimal, InvalidOperation
 
 from openai import AsyncOpenAI
+from opentelemetry import trace
 
 
 class RAGAnswerGenerator:
@@ -41,7 +42,12 @@ class RAGAnswerGenerator:
 
         context = "\n\n".join(context_parts)
 
-        response = await self.client.responses.create(
+        tracer = trace.get_tracer("ai-engineering.rag")
+        with tracer.start_as_current_span("rag.llm.generate") as span:
+            span.set_attribute("gen_ai.operation.name", "generate_content")
+            span.set_attribute("gen_ai.provider.name", "openai")
+            span.set_attribute("gen_ai.request.model", "gpt-4.1-mini")
+            response = await self.client.responses.create(
             model="gpt-4.1-mini",
             instructions=(
                 "Answer the user's question using only the provided "
@@ -56,6 +62,12 @@ class RAGAnswerGenerator:
                 f"USER QUESTION:\n{question}"
             ),
         )
+
+            span.set_attribute("gen_ai.response.model", getattr(response, "model", None) or "gpt-4.1-mini")
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                span.set_attribute("gen_ai.usage.input_tokens", int(getattr(usage, "input_tokens", 0) or 0))
+                span.set_attribute("gen_ai.usage.output_tokens", int(getattr(usage, "output_tokens", 0) or 0))
 
         usage = getattr(response, "usage", None)
         input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
