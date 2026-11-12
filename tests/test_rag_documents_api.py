@@ -72,3 +72,25 @@ def test_list_requires_authentication():
         response = client.get("/rag/documents")
 
     assert response.status_code == 401
+
+
+def test_delete_own_document_and_chunks(client):
+    test_client, db = client
+    found = MagicMock()
+    found.scalar_one_or_none.return_value = SimpleNamespace(id="doc-1")
+    db.execute.side_effect = [found, MagicMock(), MagicMock()]
+    response = test_client.delete("/rag/documents/doc-1")
+    assert response.status_code == 204
+    assert db.execute.await_count == 3
+    db.commit.assert_awaited_once()
+
+
+def test_delete_missing_document_returns_404(client):
+    test_client, db = client
+    found = MagicMock()
+    found.scalar_one_or_none.return_value = None
+    db.execute.return_value = found
+    response = test_client.delete("/rag/documents/unknown")
+    assert response.status_code == 404
+    db.commit.assert_not_awaited()
+    assert db.execute.await_count == 1

@@ -32,3 +32,25 @@ async def get_documents(
         ],
         "count": len(documents),
     }
+
+
+@router.delete("/documents/{document_id}", status_code=204)
+async def delete_document(
+    document_id: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete only the authenticated user's document and its indexed chunks."""
+    from fastapi import HTTPException
+    from sqlalchemy import delete, select
+    from models.document import Document
+    from models.document_chunk import DocumentChunk
+
+    document = (await db.execute(
+        select(Document).where(Document.id == document_id, Document.user_id == str(user.id))
+    )).scalar_one_or_none()
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    await db.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document_id))
+    await db.execute(delete(Document).where(Document.id == document_id, Document.user_id == str(user.id)))
+    await db.commit()
