@@ -26,7 +26,7 @@ async def verify_answer_support(answer: str, documents: list[dict], client=None)
             "Reply with exactly one word: SUPPORTED or UNSUPPORTED."
         ),
         input=f"EXCERPTS:\n{excerpts}\n\nANSWER:\n{answer}",
-        max_output_tokens=12,
+        max_output_tokens=64,
     )
     verdict = str(getattr(response, "output_text", "")).strip().upper()
     if verdict == "SUPPORTED":
@@ -47,6 +47,6 @@ async def verify_answer_support(answer: str, documents: list[dict], client=None)
             "Reply with exactly one word: SUPPORTED or UNSUPPORTED."
         ),
         input=f"EXCERPTS:\n{excerpts}\n\nANSWER:\n{answer}",
-        max_output_tokens=12,
+        max_output_tokens=64,
     )
     return str(getattr(confirmation, "output_text", "")).strip().upper() == "SUPPORTED"
