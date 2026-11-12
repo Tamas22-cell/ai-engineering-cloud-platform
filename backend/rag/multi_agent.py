@@ -145,7 +145,13 @@ def build_multi_agent_rag(db, user_id: str, embedding_service=None, answer_gener
                     logger.warning("rag_semantic_review_rejected")
             except Exception as exc:
                 # Do not log document content, answers, API keys, or raw exceptions.
-                logger.warning("rag_semantic_review_error", error_type=type(exc).__name__)
+                logger.warning(
+                    "rag_semantic_review_error",
+                    error_type=type(exc).__name__,
+                    status_code=getattr(exc, "status_code", None),
+                    error_code=getattr(exc, "code", None),
+                    error_param=getattr(exc, "param", None),
+                )
                 verified = False  # Fail closed on timeout, API errors or ambiguous verdicts.
         return {"sources": trusted_sources, "verified": verified}
 
