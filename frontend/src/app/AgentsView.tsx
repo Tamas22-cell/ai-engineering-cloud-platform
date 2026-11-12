@@ -32,7 +32,22 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     let cancelled = false;
     async function loadRuns() {
       try {
-        const response = await fetch(`${API_URL}/agents/workflow/runs`, { headers: { Authorization: `Bearer ${auth!.access_token}` } });
+        let response = await fetch(`${API_URL}/agents/workflow/runs`, { headers: { Authorization: `Bearer ${auth!.access_token}` } });
+        if (response.status === 401) {
+          const refreshed = await fetch(`${API_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: auth!.refresh_token }),
+          });
+          if (!refreshed.ok) {
+            if (!cancelled) setAuth(null);
+            throw new Error('Session expired');
+          }
+          const tokens = (await refreshed.json()) as AuthResponse;
+          if (cancelled) return;
+          setAuth(tokens);
+          response = await fetch(`${API_URL}/agents/workflow/runs`, { headers: { Authorization: `Bearer ${tokens.access_token}` } });
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = (await response.json()) as WorkflowRun[];
         if (!cancelled) { setRuns(data); setRunsError(''); }
