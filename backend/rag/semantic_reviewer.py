@@ -46,7 +46,7 @@ async def verify_answer_support(answer: str, documents: list[dict], client=None)
             "capabilities, numbers, or claims absent from the excerpts. "
             "Reply with exactly one word: SUPPORTED or UNSUPPORTED."
         ),
-        input=f"EXCERPTS:\\n{excerpts}\\n\\nANSWER:\\n{answer}",
+        input=f"EXCERPTS:\n{excerpts}\n\nANSWER:\n{answer}",
         max_output_tokens=12,
     )
     return str(getattr(confirmation, "output_text", "")).strip().upper() == "SUPPORTED"
