@@ -103,6 +103,14 @@ export default function RagView({ onTelemetry, auth, setAuth }: { onTelemetry?: 
     setFile(null);
   }
 
+  async function removeDocument(doc: DocumentItem) {
+    if (!window.confirm(`Biztosan törlöd ezt a dokumentumot és az indexelt részeit? ${doc.filename}`)) return;
+    await request(`/rag/documents/${encodeURIComponent(doc.id)}`, { method: 'DELETE' });
+    setDocuments(previous => previous.filter(item => item.id !== doc.id));
+    setAnswer(null);
+    setMessage(`Törölve: ${doc.filename}`);
+  }
+
   async function ask() {
     if (!question.trim()) { setMessage('Írj be egy kérdést.'); return; }
     const data = await request('/rag/multi-agent/ask', {
@@ -149,7 +157,7 @@ export default function RagView({ onTelemetry, auth, setAuth }: { onTelemetry?: 
             className="rounded-lg border border-white/20 px-4 py-2 text-sm disabled:opacity-40">Dokumentumok frissítése</button>
         </div>
         <ul className="mt-4 space-y-2 text-sm text-slate-300">
-          {documents.map(doc => <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-black/20 p-3"><span className="break-all">{doc.filename}</span><span className="text-xs text-slate-400">{Math.ceil(doc.file_size / 1024)} KB · {new Date(doc.created_at).toLocaleDateString('hu-HU')}</span></li>)}
+          {documents.map(doc => <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-black/20 p-3"><span className="break-all">{doc.filename}</span><span className="flex items-center gap-3"><span className="text-xs text-slate-400">{Math.ceil(doc.file_size / 1024)} KB · {new Date(doc.created_at).toLocaleDateString('hu-HU')}</span><button type="button" disabled={busy} onClick={() => void run(() => removeDocument(doc))} className="rounded border border-red-400/40 px-3 py-1 text-xs text-red-300 disabled:opacity-40" aria-label={`Dokumentum törlése: ${doc.filename}`}>Törlés</button></span></li>)}
         </ul>
       </div>
 
