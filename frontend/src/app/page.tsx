@@ -514,7 +514,7 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
     { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'agents' },
     { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'rag' },
     { name: 'MLOps', detail: 'Tanítás, artifact-verziók, aktív predikció és ellenőrzött visszaállítás.', status: 'Admin aktiválás', page: 'mlops' },
-    { name: 'Security & Access', detail: 'JWT ellenőrzés és GitHub CI függőségaudit; penetrációs teszt külön feladat.', status: securityAuditPassed && securityStatus === 'JWT ellenőrizve' ? 'JWT + függőségaudit sikeres' : securityStatus, page: 'security' },
+    { name: 'Security & Access', detail: 'GitHub CI függőségaudit; JWT hitelesítés és penetrációs teszt külön ellenőrzés.', status: securityAuditPassed ? 'Függőségaudit sikeres' : securityStatus, page: 'security' },
   ];
 
   return (
@@ -531,7 +531,7 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
               <div className="mt-1 text-xs text-[#9AA3AE]">{skill.detail}</div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek', 'Bejelentkezve', 'Docker/K8s CI sikeres', 'JWT + függőségaudit sikeres'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
+              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek', 'Bejelentkezve', 'Docker/K8s CI sikeres', 'Függőségaudit sikeres'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
               <button type="button" onClick={() => onNavigate(skill.page)} className="rounded border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/5">Megnyitás</button>
             </div>
           </div>
