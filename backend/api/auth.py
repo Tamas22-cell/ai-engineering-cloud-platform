@@ -1,3 +1,4 @@
+import logging
 import os
 
 from core.audit import save_audit_event
@@ -165,9 +166,16 @@ async def logout(
             detail="Invalid or expired refresh token",
         )
 
-    await revoke_refresh_token(payload["jti"])
-    await save_audit_event(
-        event_type="logout_success",
-        user_id=str(user.id),
-    )
+    jti = payload.get("jti")
+    if not jti:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    await revoke_refresh_token(jti)
+    try:
+        await save_audit_event(
+            event_type="logout_success",
+            user_id=str(user.id),
+        )
+    except Exception:
+        logging.getLogger(__name__).exception("audit write failed: logout_success")
     return {"message": "Logged out successfully"}
