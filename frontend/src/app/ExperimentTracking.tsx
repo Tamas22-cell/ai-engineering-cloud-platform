@@ -132,16 +132,16 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     try {
       const parsed: unknown = JSON.parse(hyperparametersText);
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('A hiperparamétereknek JSON objektumnak kell lenniük.');
+        throw new Error('Hyperparameters must be a JSON object.');
       }
       hyperparameters = parsed as Record<string, unknown>;
     } catch (e) {
-      setError(e instanceof SyntaxError ? 'Hibás hiperparaméter JSON.' : e instanceof Error ? e.message : 'Hibás JSON.');
+      setError(e instanceof SyntaxError ? 'Invalid hyperparameter JSON.' : e instanceof Error ? e.message : 'Invalid JSON.');
       return;
     }
     const sha = gitCommitSha.trim();
     if (sha && !/^[0-9a-fA-F]{40}$/.test(sha)) {
-      setError('A Git commit SHA pontosan 40 hexadecimális karakter legyen.');
+      setError('Git commit SHA must contain exactly 40 hexadecimal characters.');
       return;
     }
     setCreatingRun(true);
@@ -165,7 +165,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       }
       if (!response.ok) throw new Error(`Run creation: HTTP ${response.status}`);
       const updated = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
-      if (!updated.ok) throw new Error(`Runs lekérdezése: HTTP ${updated.status}`);
+      if (!updated.ok) throw new Error(`Loading runs: HTTP ${updated.status}`);
       setRuns(await updated.json() as Run[]);
       setDatasetVersion('');
       setGitCommitSha('');
@@ -181,18 +181,18 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     setTrainingResult(null);
     setError('');
     try {
-      if (file.size > 200_000) throw new Error('A tréning CSV legfeljebb 200 KB lehet.');
+      if (file.size > 200_000) throw new Error('Training CSV must be at most 200 KB.');
       const lines = (await file.text()).replace(/^\uFEFF/, '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-      if (lines.length === 0) throw new Error('A CSV üres.');
+      if (lines.length === 0) throw new Error('CSV is empty.');
       const rows = lines.map(line => line.split(',').map(value => value.trim()));
-      if (rows.some(row => row.length !== 2)) throw new Error('A tréning CSV pontosan két oszlopból álljon: x,y.');
+      if (rows.some(row => row.length !== 2)) throw new Error('Training CSV must contain exactly two columns: x,y.');
       if (rows[0].some(value => !Number.isFinite(Number(value)))) rows.shift();
       const values = rows.map(row => row.map(Number));
-      if (values.length < 50 || values.length > 2000) throw new Error('50–2000 adatsor szükséges (a fejléc nélkül).');
-      if (values.some(row => row.some(value => !Number.isFinite(value)))) throw new Error('Csak véges numerikus x,y értékek használhatók.');
+      if (values.length < 50 || values.length > 2000) throw new Error('50–2000 data rows are required (excluding header).');
+      if (values.some(row => row.some(value => !Number.isFinite(value)))) throw new Error('Only finite numeric x,y values are supported.');
       setTrainingDataset({ fileName: file.name, xValues: values.map(row => row[0]), yValues: values.map(row => row[1]) });
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'A tréning CSV nem olvasható.');
+      setError(reason instanceof Error ? reason.message : 'Training CSV could not be read.');
     }
   }
 
@@ -227,7 +227,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const updated = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
       if (updated.ok) setRuns(await updated.json() as Run[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Nem sikerült elindítani a trainingt.');
+      setError(e instanceof Error ? e.message : 'Could not start training.');
     } finally {
       setTraining(false);
     }
@@ -238,7 +238,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     const raw = (predictInputs[runId] ?? '0, 1, 2').split(',').map(value => value.trim());
     const values = raw.map(Number);
     if (raw.length < 1 || raw.length > 1000 || raw.some(value => !value) || values.some(value => !Number.isFinite(value))) {
-      setError('Adj meg 1–1000 véges számot, vesszővel elresponsetva.');
+      setError('Enter 1–1000 finite numbers separated by commas.');
       return;
     }
     setPredictBusy(runId);
@@ -287,7 +287,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       setInputDrift(previous => ({ ...previous, [runId]: summary }));
       setError('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Bemeneti drift status nem kérdezhető le.');
+      setError(e instanceof Error ? e.message : 'Input drift status unavailable.');
     } finally {
       setDriftBusy(null);
     }
@@ -355,13 +355,13 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
 
   async function promoteStaging(runId: string) {
     if (role !== 'admin' || !auth || promoting || !readiness?.ready_for_staging_review) return;
-    if (!window.confirm('A regisztrált model státusza staging lesz. Ez adatbázis-módosítás, nem modeltelepítés. Folytatod?')) return;
+    if (!window.confirm('The registered model will be set to staging. This changes database state, not deployment. Continue?')) return;
     setPromoting(true);
     setError('');
     setPromotionResult('');
     try {
       await authorizedWrite(`/mlops/experiments/runs/${encodeURIComponent(runId)}/promote-to-staging`, 'POST', {});
-      setPromotionResult('Successful staging promotion: a model regisztrációja staging statusú. Artifact még nincs telepítve.');
+      setPromotionResult('Staging promotion succeeded: model registration is now staged. No artifact has been deployed.');
       await checkStaging(runId);
     } catch (e) { setError(e instanceof Error ? e.message : 'Staging promotion failed'); }
     finally { setPromoting(false); }
@@ -396,7 +396,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     const raw = activeValues.split(',').map(value => value.trim());
     const values = raw.map(Number);
     if (!raw.length || raw.length > 1000 || raw.some(value => !value) || values.some(value => !Number.isFinite(value))) {
-      setError('Adj meg 1–1000 véges számot, vesszővel elresponsetva.'); return;
+      setError('Enter 1–1000 finite numbers separated by commas.'); return;
     }
     setActivePredictBusy(true); setActivePrediction(null); setError('');
     try {
@@ -430,7 +430,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const response = await authenticatedGet(`/mlops/training/experiments/${encodeURIComponent(selected)}/artifact-versions`);
       const data = await response.json() as { versions: typeof artifactVersions };
       setArtifactVersions(data.versions || []);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Artifact-verziók nem tölthetők be.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Artifact versions could not be loaded.'); }
     finally { setArtifactBusy(false); }
   }
 
@@ -440,13 +440,13 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     try {
       const response = await authenticatedGet(`/mlops/training/experiments/${encodeURIComponent(selected)}/rollback-preview/${encodeURIComponent(rollbackTarget)}`);
       setRollbackPreview(await response.json() as Record<string, unknown>);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Visszaállítási előnézet nem tölthető be.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Rollback preview could not be loaded.'); }
     finally { setRollbackBusy(false); }
   }
 
   async function activeRequest(runId?: string) {
     if (!selected || !auth || activeBusy) return;
-    if (runId && (role !== 'admin' || !window.confirm('Active modelverzió cseréje? A korábbi verzió visszaállítható.'))) return;
+    if (runId && (role !== 'admin' || !window.confirm('Change the active model version? The previous version can be restored.'))) return;
     setActiveBusy(true); setError(''); setActiveFeedback('');
     try {
       const url = `${API}/mlops/training/experiments/${encodeURIComponent(selected)}/active-version${runId ? '/' + encodeURIComponent(runId) : ''}`;
@@ -467,11 +467,11 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const data = await response.json() as { active_run_id: string | null };
       setActiveRunId(data.active_run_id);
       setActiveFeedback(data.active_run_id
-        ? `Active modelverzió: ${data.active_run_id}${runId ? ' (successfulen aktiválva)' : ' (lekérdezve)'}`
-        : 'A lekérdezés successful: jelenleg nincs aktív modelverzió.');
+        ? `Active model version: ${data.active_run_id}${runId ? ' (successfully activated)' : ' (loaded)'}`
+        : 'Request succeeded: no active model version currently exists.');
     } catch (e) {
       setActiveFeedback('');
-      setError(e instanceof Error ? e.message : 'Active verzió lekérdezése failed');
+      setError(e instanceof Error ? e.message : 'Failed to load active version');
     }
     finally { setActiveBusy(false); }
   }
@@ -484,7 +484,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const response = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`Run API HTTP ${response.status}`);
       setRuns(await response.json() as Run[]);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Státusz módosítása failed'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to update status'); }
     finally { setBusyRun(null); }
   }
 
@@ -493,7 +493,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     const input = metricInputs[runId];
     const value = Number(input?.value);
     if (!input?.name.trim() || !input.value.trim() || !Number.isFinite(value)) {
-      setError('Adj meg metricnevet és érvényes számértéket.'); return;
+      setError('Enter a metric name and valid numeric value.'); return;
     }
     setBusyRun(runId); setError('');
     try {
@@ -513,80 +513,80 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const data = await response.json() as Metric[];
       setMetrics(previous => ({ ...previous, [runId]: data }));
       setError('');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Metrikák unavailablek'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Metrics unavailable'); }
   }
 
   return <section className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h3 className="font-semibold">Experiment Tracking 2.0</h3><p className="text-xs text-slate-400">Kísérletek, runs, hyperparaméterek és verziókövetés</p></div>
-      <button type="button" onClick={() => void loadExperiments()} disabled={loading} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{loading ? 'Betöltés...' : 'Refresh'}</button>
+      <div><h3 className="font-semibold">Experiment Tracking 2.0</h3><p className="text-xs text-slate-400">Experiments, runs, hyperparameters and version tracking</p></div>
+      <button type="button" onClick={() => void loadExperiments()} disabled={loading} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{loading ? 'Loading...' : 'Refresh'}</button>
     </div>
     {canWrite && <div className="flex flex-wrap gap-2">
-      <select aria-label="Kísérlet modelje" value={modelId} onChange={e => setModelId(e.target.value)} className="rounded border border-white/15 bg-[#11151C] p-2 text-sm">
-        <option value="">Válassz modelt</option>{models.map(m => <option key={m.id} value={m.id}>{m.name} ({m.version})</option>)}
+      <select aria-label="Experiment model" value={modelId} onChange={e => setModelId(e.target.value)} className="rounded border border-white/15 bg-[#11151C] p-2 text-sm">
+        <option value="">Select model</option>{models.map(m => <option key={m.id} value={m.id}>{m.name} ({m.version})</option>)}
       </select>
-      <input aria-label="Kísérlet neve" value={name} maxLength={160} onChange={e => setName(e.target.value)} placeholder="Kísérlet neve" className="rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
-      <button type="button" onClick={() => void createExperiment()} disabled={!name.trim() || !modelId} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">Kísérlet creation</button>
+      <input aria-label="Experiment name" value={name} maxLength={160} onChange={e => setName(e.target.value)} placeholder="Experiment name" className="rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+      <button type="button" onClick={() => void createExperiment()} disabled={!name.trim() || !modelId} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">Create experiment</button>
     </div>}
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
-    <select aria-label="Kísérlet kiresponsetása" value={selected} onChange={e => setSelected(e.target.value)} className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm">
-      <option value="">Válassz kísérletet ({experiments.length})</option>
+    <select aria-label="Select experiment" value={selected} onChange={e => setSelected(e.target.value)} className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm">
+      <option value="">Select experiment ({experiments.length})</option>
       {experiments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
     </select>
     {selected && <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 rounded border border-white/15 p-3 text-xs">
-        <span>Active model: {activeRunId ? activeRunId.slice(0, 8) + '…' : 'nincs kiresponsetva / még nincs lekérdezve'}</span>
-        <button type="button" disabled={!auth || activeBusy} onClick={() => void activeRequest()} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">{activeBusy ? 'Lekérdezés...' : 'Active verzió refreshe'}</button>
-        {role === 'admin' && <select aria-label="Active model kiresponsetása" disabled={activeBusy} value="" onChange={e => { if (e.target.value) void activeRequest(e.target.value); }} className="rounded bg-[#11151C] p-1">
-          <option value="">Verzió aktiválása / rollback…</option>
-          {runs.filter(run => run.status === 'completed' && !!run.hyperparameters?.model_artifact).map(run => <option key={run.id} value={run.id}>{run.id.slice(0, 8)}{run.id === activeRunId ? ' (aktív)' : ''}</option>)}
+        <span>Active model: {activeRunId ? activeRunId.slice(0, 8) + '…' : 'nincs kiresponsetva / még nincs loaded'}</span>
+        <button type="button" disabled={!auth || activeBusy} onClick={() => void activeRequest()} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">{activeBusy ? 'Loading...' : 'Refresh active version'}</button>
+        {role === 'admin' && <select aria-label="Select active model" disabled={activeBusy} value="" onChange={e => { if (e.target.value) void activeRequest(e.target.value); }} className="rounded bg-[#11151C] p-1">
+          <option value="">Activate version / rollback…</option>
+          {runs.filter(run => run.status === 'completed' && !!run.hyperparameters?.model_artifact).map(run => <option key={run.id} value={run.id}>{run.id.slice(0, 8)}{run.id === activeRunId ? ' (active)' : ''}</option>)}
         </select>}
       </div>
       {activeFeedback && <p role="status" aria-live="polite" className="text-xs text-emerald-300">{activeFeedback}</p>}
       {activeRunId && auth && <div className="space-y-2 rounded border border-white/10 p-3">
-        <p className="text-sm font-medium">Prediction az aktív modelen</p>
+        <p className="text-sm font-medium">Prediction with active model</p>
         <div className="flex flex-wrap gap-2">
-          <input aria-label="Active model bemeneti értékei" value={activeValues} onChange={e => setActiveValues(e.target.value)} placeholder="0, 1, 2" className="min-w-48 flex-1 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
-          <button type="button" disabled={activePredictBusy} onClick={() => void predictActive()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{activePredictBusy ? 'Számítás...' : 'Active model futtatása'}</button>
+          <input aria-label="Active model input values" value={activeValues} onChange={e => setActiveValues(e.target.value)} placeholder="0, 1, 2" className="min-w-48 flex-1 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+          <button type="button" disabled={activePredictBusy} onClick={() => void predictActive()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{activePredictBusy ? 'Computing...' : 'Run active model'}</button>
         </div>
-        {activePrediction && <p role="status" className="break-words text-emerald-200">Eredmény: {activePrediction.map(value => value.toFixed(4)).join(', ')}</p>}
+        {activePrediction && <p role="status" className="break-words text-emerald-200">Result: {activePrediction.map(value => value.toFixed(4)).join(', ')}</p>}
       </div>}
       <div className="space-y-2 rounded border border-white/10 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium">Artifact-verziók és visszaállítási verification</p>
-          <button type="button" disabled={!auth || artifactBusy} onClick={() => void loadArtifactVersions()} className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200 disabled:opacity-50">{artifactBusy ? 'Betöltés...' : 'Verziók refreshe'}</button>
+          <p className="text-sm font-medium">Artifact versions and rollback verification</p>
+          <button type="button" disabled={!auth || artifactBusy} onClick={() => void loadArtifactVersions()} className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200 disabled:opacity-50">{artifactBusy ? 'Loading...' : 'Refresh versions'}</button>
         </div>
         {artifactVersions.length > 0 && <div className="space-y-2 text-xs">
-          {artifactVersions.map(version => <p key={version.version_id} className="break-all text-slate-300">Run: {version.run_id} · integritás: {version.integrity_ok ? 'rendben' : 'hibás'}{version.active ? ' · aktív' : ''}</p>)}
+          {artifactVersions.map(version => <p key={version.version_id} className="break-all text-slate-300">Run: {version.run_id} · integrity: {version.integrity_ok ? 'valid' : 'invalid'}{version.active ? ' · active' : ''}</p>)}
           <div className="flex flex-wrap gap-2">
-            <select aria-label="Visszaállítás célrun" value={rollbackTarget} onChange={e => { setRollbackTarget(e.target.value); setRollbackPreview(null); }} className="min-w-48 flex-1 rounded bg-[#11151C] p-2">
-              <option value="">Válassz korábbi runt</option>
-              {artifactVersions.map(version => <option key={version.run_id} value={version.run_id}>{version.run_id.slice(0, 8)}{version.active ? ' (aktív)' : ''}</option>)}
+            <select aria-label="Rollback target run" value={rollbackTarget} onChange={e => { setRollbackTarget(e.target.value); setRollbackPreview(null); }} className="min-w-48 flex-1 rounded bg-[#11151C] p-2">
+              <option value="">Select previous run</option>
+              {artifactVersions.map(version => <option key={version.run_id} value={version.run_id}>{version.run_id.slice(0, 8)}{version.active ? ' (active)' : ''}</option>)}
             </select>
-            <button type="button" disabled={!rollbackTarget || rollbackBusy} onClick={() => void previewRollback()} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{rollbackBusy ? 'Verification...' : 'Visszaállítás verificatione'}</button>
+            <button type="button" disabled={!rollbackTarget || rollbackBusy} onClick={() => void previewRollback()} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{rollbackBusy ? 'Verification...' : 'Verify rollback'}</button>
           </div>
           {rollbackPreview && <div role="status" className="space-y-1 rounded bg-black/20 p-2 text-xs">
-            <p className={rollbackPreview.eligible_for_activation_review === true ? 'text-emerald-300' : 'text-amber-300'}>{rollbackPreview.eligible_for_activation_review === true ? 'Az verification alapján aktiválásra alkalmas.' : 'Az verification nem engedélyezi az aktiválást.'}</p>
+            <p className={rollbackPreview.eligible_for_activation_review === true ? 'text-emerald-300' : 'text-amber-300'}>{rollbackPreview.eligible_for_activation_review === true ? 'Eligible for activation based on verification.' : 'Verification does not allow activation.'}</p>
             <pre className="overflow-x-auto whitespace-pre-wrap text-slate-300">{JSON.stringify(rollbackPreview.checks ?? rollbackPreview, null, 2)}</pre>
-            <p className="text-slate-400">Az aktiválás admin művelet; ez az verification önmagában nem változtatja meg az aktív verziót.</p>
-            {role === 'admin' && rollbackPreview.eligible_for_activation_review === true && <button type="button" disabled={activeBusy} onClick={() => void activeRequest(rollbackTarget)} className="rounded bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{activeBusy ? 'Aktiválás...' : 'Ellenőrzött verzió aktiválása'}</button>}
+            <p className="text-slate-400">Activation requires admin access; this verification does not change the active version.</p>
+            {role === 'admin' && rollbackPreview.eligible_for_activation_review === true && <button type="button" disabled={activeBusy} onClick={() => void activeRequest(rollbackTarget)} className="rounded bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{activeBusy ? 'Activating...' : 'Activate verified version'}</button>}
           </div>}
         </div>}
       </div>
-      {!auth && <p className="text-xs text-amber-300">Az aktív model lekérdezéséhez jelentkezz be.</p>}
+      {!auth && <p className="text-xs text-amber-300">Sign in to load the active model.</p>}
       <p className="text-xs text-slate-400">{runs.length} run (legfeljebb 50)</p>
       {canWrite && <div className="space-y-3 rounded-lg border border-cyan-400/20 bg-black/20 p-3">
-        <label className="block text-xs text-slate-300">Regressziós CSV (két numerikus oszlop: x,y; 50–2000 sor; max 200 KB)
+        <label className="block text-xs text-slate-300">Regression CSV (two numeric columns: x,y; 50–2000 rows; max 200 KB)
           <input type="file" accept=".csv,text/csv" disabled={training} onChange={event => void loadTrainingCsv(event.target.files?.[0])} className="mt-2 block w-full text-sm" />
         </label>
-        {trainingDataset && <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-300"><span>{trainingDataset.fileName} · {trainingDataset.xValues.length} minta · nyers data csak a tréningkérésben kerülnek továbbításra</span><button type="button" onClick={() => setTrainingDataset(null)} className="rounded border border-white/20 px-2 py-1">CSV deletione</button></div>}
+        {trainingDataset && <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-300"><span>{trainingDataset.fileName} · {trainingDataset.xValues.length} samples · raw data is transmitted only for the training request</span><button type="button" onClick={() => setTrainingDataset(null)} className="rounded border border-white/20 px-2 py-1">Remove CSV</button></div>}
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" disabled={training} onClick={() => void trainModel()} className="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">{training ? 'Training folyamatban...' : 'Train Model'}</button>
-          <span className="text-xs text-slate-400">{trainingDataset ? 'Saját CSV regresszió' : 'Szintetikus regresszió · 200 minta'} · 200 epoch</span>
+          <span className="text-xs text-slate-400">{trainingDataset ? 'Custom CSV regression' : 'Synthetic regression · 200 samples'} · 200 epoch</span>
         </div>
       </div>}
       {trainingResult && <div role="status" className="rounded border border-emerald-400/30 p-3 text-sm text-emerald-200">
-        Training kész · {trainingResult.dataset === 'uploaded_csv' ? 'Saját CSV' : 'Szintetikus adat'} · {trainingResult.train_samples ?? '—'} tanító / {trainingResult.test_samples ?? '—'} tesztminta · MAE: {trainingResult.metrics.mae.toFixed(4)} · RMSE: {trainingResult.metrics.rmse.toFixed(4)} · R²: {trainingResult.metrics.r2.toFixed(4)}
+        Training complete · {trainingResult.dataset === 'uploaded_csv' ? 'Custom CSV' : 'Synthetic data'} · {trainingResult.train_samples ?? '—'} training / {trainingResult.test_samples ?? '—'} test samples · MAE: {trainingResult.metrics.mae.toFixed(4)} · RMSE: {trainingResult.metrics.rmse.toFixed(4)} · R²: {trainingResult.metrics.r2.toFixed(4)}
       </div>}
       <div className="space-y-2 rounded-lg border border-white/10 p-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -604,29 +604,29 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
               <td className="p-2">{item.r2?.toFixed(4) ?? '—'}</td>
             </tr>)}</tbody>
           </table>
-          <button type="button" onClick={() => void checkStaging(comparison[0].id)} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200">Best run staging előkészítés</button>
-          {candidateRun === comparison[0].id && <p className="mt-2 text-xs text-amber-200">Staging jelölt: {candidateRun}. Regisztrált model: {models.find(m => m.id === experiments.find(e => e.id === selected)?.model_id)?.name ?? 'Nincs találat'}. Ez csak előkészítés, nem modeltelepítés.</p>}
-          {candidateRun === comparison[0].id && readiness && <p className="mt-2 text-xs text-cyan-200">Backend validáció: {readiness.ready_for_staging_review ? 'Staging review kész' : 'Hiányos'} · {Object.entries(readiness.checks).map(([key, ok]) => `${key}: ${ok ? 'OK' : 'HIÁNYZIK'}`).join(' · ')}</p>}
+          <button type="button" onClick={() => void checkStaging(comparison[0].id)} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200">Prepare best run for staging</button>
+          {candidateRun === comparison[0].id && <p className="mt-2 text-xs text-amber-200">Staging candidate: {candidateRun}. Registered model: {models.find(m => m.id === experiments.find(e => e.id === selected)?.model_id)?.name ?? 'Not found'}. Preparation only, not model deployment.</p>}
+          {candidateRun === comparison[0].id && readiness && <p className="mt-2 text-xs text-cyan-200">Backend validation: {readiness.ready_for_staging_review ? 'Ready for staging review' : 'Incomplete'} · {Object.entries(readiness.checks).map(([key, ok]) => `${key}: ${ok ? 'OK' : 'MISSING'}`).join(' · ')}</p>}
           {candidateRun === comparison[0].id && readiness?.ready_for_staging_review && role === 'admin' && <button type="button" disabled={promoting} onClick={() => void promoteStaging(candidateRun)} className="mt-2 rounded border border-amber-400/50 px-3 py-2 text-xs text-amber-200 disabled:opacity-50">{promoting ? 'Staging promotion folyamatban...' : 'Promote to Staging (admin)'}</button>}
           {promotionResult && <p role="status" className="mt-2 text-xs text-emerald-200">{promotionResult}</p>}
-          <p className="mt-2 text-xs text-slate-400">Csak az MAE metrikával rendelkező runs szerepelnek. Az comparison nem telepít modelt; különböző adatkészletek eredményei nem feltétlenül összevethetők.</p>
+          <p className="mt-2 text-xs text-slate-400">Only runs with MAE metrics are shown. Comparison does not deploy models; results from different datasets may not be comparable.</p>
         </div>}
-        {!comparing && comparison.length === 0 && <p className="text-xs text-slate-500">Kattints a Compare Runs gombra a metrikák betöltéséhez.</p>}
+        {!comparing && comparison.length === 0 && <p className="text-xs text-slate-500">Click Compare Runs to load metrics.</p>}
       </div>
       {canWrite && <div className="space-y-3 rounded-lg border border-white/10 bg-black/20 p-3">
-        <p className="text-sm font-medium text-slate-100">Új run adatai</p>
+        <p className="text-sm font-medium text-slate-100">New run details</p>
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="space-y-1 text-xs text-slate-300">Dataset verzió (optional)
-            <input aria-label="Dataset verzió" maxLength={160} value={datasetVersion} onChange={e => setDatasetVersion(e.target.value)} placeholder="pl. dataset-v1.2" className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+          <label className="space-y-1 text-xs text-slate-300">Dataset version (optional)
+            <input aria-label="Dataset version" maxLength={160} value={datasetVersion} onChange={e => setDatasetVersion(e.target.value)} placeholder="e.g. dataset-v1.2" className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
           </label>
           <label className="space-y-1 text-xs text-slate-300">Git commit SHA (optional, 40 hex karakter)
             <input aria-label="Git commit SHA" maxLength={40} value={gitCommitSha} onChange={e => setGitCommitSha(e.target.value)} placeholder="40 karakteres commit hash" className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
           </label>
         </div>
-        <label className="block space-y-1 text-xs text-slate-300">Hiperparaméterek (JSON objektum)
-          <textarea aria-label="Hiperparaméterek JSON" rows={3} value={hyperparametersText} onChange={e => setHyperparametersText(e.target.value)} spellCheck={false} className="w-full rounded border border-white/15 bg-[#11151C] p-2 font-mono text-sm" />
+        <label className="block space-y-1 text-xs text-slate-300">Hyperparameters (JSON object)
+          <textarea aria-label="Hyperparameters JSON" rows={3} value={hyperparametersText} onChange={e => setHyperparametersText(e.target.value)} spellCheck={false} className="w-full rounded border border-white/15 bg-[#11151C] p-2 font-mono text-sm" />
         </label>
-        <button type="button" disabled={creatingRun} onClick={() => void createRun()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{creatingRun ? 'Creation...' : 'Új run creation'}</button>
+        <button type="button" disabled={creatingRun} onClick={() => void createRun()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{creatingRun ? 'Creation...' : 'Create new run'}</button>
       </div>}
       {runs.map(run => {
         const drift = inputDrift[run.id];
@@ -641,27 +641,27 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         </div>}
         {canWrite && (run.status === 'pending' || run.status === 'running') && <div className="flex flex-wrap gap-2">
           <input aria-label="Metric neve" maxLength={80} value={metricInputs[run.id]?.name ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: e.target.value, value: previous[run.id]?.value ?? '' } }))} placeholder="Metric neve" className="rounded border border-white/15 bg-[#11151C] p-2" />
-          <input aria-label="Metric értéke" type="number" step="any" value={metricInputs[run.id]?.value ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: previous[run.id]?.name ?? '', value: e.target.value } }))} placeholder="Érték" className="w-28 rounded border border-white/15 bg-[#11151C] p-2" />
+          <input aria-label="Metric value" type="number" step="any" value={metricInputs[run.id]?.value ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: previous[run.id]?.name ?? '', value: e.target.value } }))} placeholder="Value" className="w-28 rounded border border-white/15 bg-[#11151C] p-2" />
           <button type="button" disabled={busyRun !== null} onClick={() => void recordRunMetric(run.id)} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">Metric savinge</button>
         </div>}
         {canWrite && run.status === 'completed' && Boolean(run.hyperparameters?.model_artifact) && <div className="space-y-2 rounded border border-cyan-400/20 p-3">
-          <label className="block text-xs text-slate-300">Predict · bemeneti X értékek (vesszővel elresponsetva)
+          <label className="block text-xs text-slate-300">Predict · input X values (comma-separated)
             <input aria-label={`Predict inputs ${run.id}`} value={predictInputs[run.id] ?? '0, 1, 2'} onChange={e => setPredictInputs(previous => ({ ...previous, [run.id]: e.target.value }))} placeholder="0, 1, 2" className="mt-1 w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
           </label>
-          <button type="button" disabled={predictBusy !== null} onClick={() => void predictRun(run.id)} className="rounded bg-cyan-500 px-3 py-2 text-xs font-medium text-black disabled:opacity-50">{predictBusy === run.id ? 'Számítás...' : 'Predict'}</button>
+          <button type="button" disabled={predictBusy !== null} onClick={() => void predictRun(run.id)} className="rounded bg-cyan-500 px-3 py-2 text-xs font-medium text-black disabled:opacity-50">{predictBusy === run.id ? 'Computing...' : 'Predict'}</button>
           {predictResults[run.id] && <p role="status" className="break-words text-emerald-200">Prediction: {predictResults[run.id].map(value => value.toFixed(4)).join(', ')}</p>}
-          <button type="button" disabled={driftBusy !== null} onClick={() => void loadInputDrift(run.id)} className="rounded border border-violet-400/40 px-3 py-2 text-xs text-violet-200 disabled:opacity-50">{driftBusy === run.id ? 'Drift mérés...' : 'Bemeneti drift verificatione'}</button>
+          <button type="button" disabled={driftBusy !== null} onClick={() => void loadInputDrift(run.id)} className="rounded border border-violet-400/40 px-3 py-2 text-xs text-violet-200 disabled:opacity-50">{driftBusy === run.id ? 'Measuring drift...' : 'Check input drift'}</button>
           {drift && <div className="rounded border border-white/10 bg-black/20 p-3 text-xs">
             <p className={drift.status === 'drift_detected' ? 'font-medium text-amber-200' : drift.status === 'within_expected_range' ? 'font-medium text-emerald-200' : 'font-medium text-slate-300'}>
-              {drift.status === 'drift_detected' ? 'Drift jelzés' : drift.status === 'within_expected_range' ? 'A minta a beállított tartományon belül' : drift.status === 'insufficient_data' ? 'Kevés adat a minősítéshez' : drift.status === 'no_inference_data' ? 'Nincs rögzített inference-adat' : drift.status}
+              {drift.status === 'drift_detected' ? 'Drift detected' : drift.status === 'within_expected_range' ? 'Sample within expected range' : drift.status === 'insufficient_data' ? 'Insufficient data to classify' : drift.status === 'no_inference_data' ? 'No recorded inference data' : drift.status}
             </p>
-            <p className="mt-1 text-slate-300">{drift.sample_count} érték · {drift.batch_count} batch · 30 nap</p>
-            {drift.mean_shift_in_std !== null && <p className="mt-1 text-slate-400">Átlageltolódás: {drift.mean_shift_in_std.toFixed(2)} szórás · szórásarány: {(drift.std_ratio ?? 0).toFixed(2)} · &gt;3σ érték: {((drift.outlier_rate ?? 0) * 100).toFixed(1)}%</p>}
-            {drift.signals.length > 0 && <p className="mt-1 text-amber-200">Jelzések: {drift.signals.join(', ')}</p>}
-            <p className="mt-1 text-slate-500">A backend csak aggregált adatot tárol, nyers bemenetet nem. Heurisztikus jelzés, nem minőségi garancia.</p>
+            <p className="mt-1 text-slate-300">{drift.sample_count} values · {drift.batch_count} batch · 30 days</p>
+            {drift.mean_shift_in_std !== null && <p className="mt-1 text-slate-400">Mean shift: {drift.mean_shift_in_std.toFixed(2)} standard deviations · standard deviation ratio: {(drift.std_ratio ?? 0).toFixed(2)} · &gt;3σ érték: {((drift.outlier_rate ?? 0) * 100).toFixed(1)}%</p>}
+            {drift.signals.length > 0 && <p className="mt-1 text-amber-200">Signals: {drift.signals.join(', ')}</p>}
+            <p className="mt-1 text-slate-500">Backend stores only aggregate data, not raw inputs. Heuristic signal, not a quality guarantee.</p>
           </div>}
         </div>}
-        <button type="button" onClick={() => void showMetrics(run.id)} className="text-cyan-300 underline">Metrikák megjelenítése</button>
+        <button type="button" onClick={() => void showMetrics(run.id)} className="text-cyan-300 underline">Show metrics</button>
         {metrics[run.id] && <div className="space-y-1">{metrics[run.id].length ? metrics[run.id].map(m => <p key={m.id}>{m.name}: {m.value} (step {m.step})</p>) : <p>No metric.</p>}</div>}
       </div>;
       })}
