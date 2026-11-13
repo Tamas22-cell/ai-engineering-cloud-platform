@@ -453,9 +453,9 @@ function Placeholder({
 }
 
 function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; auth: SharedAuth | null }) {
-  const [cloudStatus, setCloudStatus] = useState('Ellenőrzés...');
-  const [kubernetesStatus, setKubernetesStatus] = useState('CI ellenőrzés...');
-  const [securityStatus, setSecurityStatus] = useState('JWT ellenőrzés...');
+  const [cloudStatus, setCloudStatus] = useState('Checking...');
+  const [kubernetesStatus, setKubernetesStatus] = useState('Checking CI...');
+  const [securityStatus, setSecurityStatus] = useState('Checking JWT...');
   const [securityAuditPassed, setSecurityAuditPassed] = useState(false);
 
   useEffect(() => {
@@ -474,11 +474,11 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
         const passed = required.every(name => jobData.jobs?.some(job => job.name === name && job.conclusion === 'success'));
         const audited = jobData.jobs?.some(job => job.name === 'security-audit' && job.conclusion === 'success') ?? false;
         if (!cancelled) {
-          setKubernetesStatus(passed ? 'Docker/K8s CI sikeres' : 'CI validáció hiányzik');
+          setKubernetesStatus(passed ? 'Docker/K8s CI passed' : 'CI validation missing');
           setSecurityAuditPassed(audited);
         }
       } catch {
-        if (!cancelled) setKubernetesStatus('CI állapot nem elérhető');
+        if (!cancelled) setKubernetesStatus('CI status unavailable');
       }
     }
     void verifyKubernetes();
@@ -488,14 +488,14 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
   useEffect(() => {
     let cancelled = false;
     const accessToken = auth?.access_token;
-    if (!accessToken) { setSecurityStatus('Bejelentkezés kell'); return; }
+    if (!accessToken) { setSecurityStatus('Sign-in required'); return; }
     async function verifySecurity() {
-      setSecurityStatus('JWT ellenőrzés...');
+      setSecurityStatus('Checking JWT...');
       try {
         const response = await fetch('/backend/auth/me', { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store', signal: AbortSignal.timeout(12000) });
-        if (!cancelled) setSecurityStatus(response.ok ? 'JWT ellenőrizve' : 'JWT ellenőrzés sikertelen');
+        if (!cancelled) setSecurityStatus(response.ok ? 'JWT verified' : 'JWT verification failed');
       } catch {
-        if (!cancelled) setSecurityStatus('JWT ellenőrzés nem elérhető');
+        if (!cancelled) setSecurityStatus('JWT verification unavailable');
       }
     }
     void verifySecurity();
@@ -520,11 +520,11 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
         const data = await integrations.json() as IntegrationHealth;
         if (!cancelled) {
           setCloudStatus(data.redis === 'connected' && data.langfuse === 'configured'
-            ? 'Alapszolgáltatások élnek'
-            : 'Részben működik');
+            ? 'Core services online'
+            : 'Partially operational');
         }
       } catch {
-        if (!cancelled) setCloudStatus('Ellenőrzés sikertelen');
+        if (!cancelled) setCloudStatus('Health check failed');
       }
     }
 
@@ -535,18 +535,18 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
     { name: 'Python Backend', detail: 'FastAPI szolgáltatás, hitelesítés és valós health ellenőrzés.', status: 'API állapot élő', page: 'overview' },
     { name: 'Cloud Infrastructure', detail: 'Vercel frontend, Render API és PostgreSQL állapotellenőrzés.', status: cloudStatus, page: 'infra' },
     { name: 'Docker / Kubernetes', detail: 'Docker Compose és Kubernetes manifestek CI-validációja sikeres; élő cluster telepítése nincs igazolva.', status: kubernetesStatus, page: 'devops' },
-    { name: 'CI/CD', detail: 'GitHub Actions legutóbbi futásai közvetlenül megjelennek.', status: 'Élő futások', page: 'devops' },
-    { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'agents' },
-    { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'rag' },
-    { name: 'MLOps', detail: 'Tanítás, artifact-verziók, aktív predikció és ellenőrzött visszaállítás.', status: 'Admin aktiválás', page: 'mlops' },
-    { name: 'Security & Access', detail: 'GitHub CI függőségaudit; JWT hitelesítés és penetrációs teszt külön ellenőrzés.', status: securityAuditPassed ? 'Függőségaudit sikeres' : securityStatus, page: 'security' },
+    { name: 'CI/CD', detail: 'Recent GitHub Actions runs are displayed directly.', status: 'Live runs', page: 'devops' },
+    { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: auth ? 'Signed in' : 'Sign-in required', page: 'agents' },
+    { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: auth ? 'Signed in' : 'Sign-in required', page: 'rag' },
+    { name: 'MLOps', detail: 'Tanítás, artifact-verziók, aktív predikció és ellenőrzött visszaállítás.', status: 'Admin activation', page: 'mlops' },
+    { name: 'Security & Access', detail: 'GitHub CI függőségaudit; JWT authentication és penetrációs teszt külön ellenőrzés.', status: securityAuditPassed ? 'Függőségaudit sikeres' : securityStatus, page: 'security' },
   ];
 
   return (
     <section className="max-w-4xl space-y-4">
       <div>
-        <h2 className="text-xl font-semibold">Platform funkciók és készültség</h2>
-        <p className="mt-1 text-sm text-[#9AA3AE]">A lista a jelenlegi alkalmazás funkcióit mutatja. A bejelentkezéshez vagy külső szolgáltatáshoz kötött részeket külön jelöljük.</p>
+        <h2 className="text-xl font-semibold">Platform features and readiness</h2>
+        <p className="mt-1 text-sm text-[#9AA3AE]">This list shows the application's current capabilities. A bejelentkezéshez vagy külső szolgáltatáshoz kötött részeket külön jelöljük.</p>
       </div>
       <div className="rounded-xl border border-white/5 bg-[#11151C] divide-y divide-white/5">
         {skills.map(skill => (
@@ -556,7 +556,7 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
               <div className="mt-1 text-xs text-[#9AA3AE]">{skill.detail}</div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek', 'Bejelentkezve', 'Docker/K8s CI sikeres', 'Függőségaudit sikeres'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
+              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Live runs' || ['API állapot élő', 'Live runs', 'Core services online', 'Signed in', 'Docker/K8s CI passed', 'Függőségaudit sikeres'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Sign-in required' || skill.status === 'Admin activation' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
               <button type="button" onClick={() => onNavigate(skill.page)} className="rounded border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/5">Megnyitás</button>
             </div>
           </div>
@@ -568,11 +568,11 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
 type AgentRunMonitor = { id: string; task: string; status: string; duration_ms: number; created_at: string; step_timings: Record<string, number> };
 function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?: Record<string, number>; usage?: { model?: string; total_tokens?: number; estimated_cost_usd?: string | null }; verified?: boolean } | null; auth: SharedAuth | null }) {
   const [agentRuns, setAgentRuns] = useState<AgentRunMonitor[]>([]);
-  const [monitorStatus, setMonitorStatus] = useState('Bejelentkezés szükséges az Agent Monitoring előzményekhez.');
+  const [monitorStatus, setMonitorStatus] = useState('Sign-in required az Agent Monitoring előzményekhez.');
   const [traceExportStatus, setTraceExportStatus] = useState('Checking...');
   const [traceProbeBusy, setTraceProbeBusy] = useState(false);
   useEffect(() => {
-    if (!auth) { setAgentRuns([]); setMonitorStatus('Bejelentkezés szükséges az Agent Monitoring előzményekhez.'); return; }
+    if (!auth) { setAgentRuns([]); setMonitorStatus('Sign-in required az Agent Monitoring előzményekhez.'); return; }
     let cancelled = false;
     async function refresh() {
       try {
@@ -648,7 +648,7 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
       {agentRuns.length > 0 && <>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Futások</p><strong>{agentRuns.length}</strong></div>
-          <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Sikeres</p><strong>{agentRuns.filter(r => r.status === 'success').length}</strong></div>
+          <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Successful</p><strong>{agentRuns.filter(r => r.status === 'success').length}</strong></div>
           <div className="rounded-lg bg-white/5 p-3"><p className="text-xs text-slate-400">Átlagos idő</p><strong>{(agentRuns.reduce((n, r) => n + r.duration_ms, 0) / agentRuns.length).toFixed(0)} ms</strong></div>
         </div>
         <details className="rounded-lg border border-white/10 p-3">
@@ -665,7 +665,7 @@ function ObservabilityView({ telemetry, auth }: { telemetry: { step_timings_ms?:
     </div>
     {!telemetry?.step_timings_ms ? <div className="rounded-xl border border-amber-500/20 p-5 text-amber-200">Még nincs mért futás ebben a munkamenetben. Menj a RAG oldalra, jelentkezz be, és tegyél fel egy kérdést a feltöltött PDF-ről.</div> : <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{steps.map(step => <div key={step} className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-sm capitalize text-slate-300">{step}</p><p className="mt-2 text-2xl font-semibold">{telemetry.step_timings_ms?.[step] == null ? 'Nincs adat' : `${telemetry.step_timings_ms[step].toFixed(1)} ms`}</p></div>)}</div>
-      <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Legutóbbi kérdés összesítése</h3><p>Forrásellenőrzés: {telemetry.verified ? 'Sikeres' : 'Nem igazolt'}</p><p>LLM modell: {telemetry.usage?.model ?? 'Nem jelentett'}</p><p>LLM tokenek: {telemetry.usage?.total_tokens ?? 'Nem jelentett'}</p><p>Becsült LLM költség: {telemetry.usage?.estimated_cost_usd == null ? 'Nincs konfigurálva' : `$${telemetry.usage.estimated_cost_usd}`}</p><p className="text-xs text-slate-400">A tokenköltség nem tartalmazza automatikusan az embedding és infrastruktúra költségeit. Az adatok oldalfrissítéskor elvesznek.</p></div>
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Legutóbbi kérdés összesítése</h3><p>Forrásellenőrzés: {telemetry.verified ? 'Successful' : 'Nem igazolt'}</p><p>LLM modell: {telemetry.usage?.model ?? 'Nem jelentett'}</p><p>LLM tokenek: {telemetry.usage?.total_tokens ?? 'Nem jelentett'}</p><p>Becsült LLM költség: {telemetry.usage?.estimated_cost_usd == null ? 'Nincs konfigurálva' : `$${telemetry.usage.estimated_cost_usd}`}</p><p className="text-xs text-slate-400">A tokenköltség nem tartalmazza automatikusan az embedding és infrastruktúra költségeit. Az adatok oldalfrissítéskor elvesznek.</p></div>
     </>}
   </section>;
 }
@@ -746,7 +746,7 @@ function DevOpsView() {
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Redis</h3><p className="mt-2 text-xl font-semibold" role="status">{integrations ? integrations.redis === 'connected' ? 'Connected' : 'Disconnected' : status === 'offline' ? 'Unavailable' : 'Checking...'}</p><p className="mt-2 text-xs text-slate-400">/backend/health/integrations · live ping</p></div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Langfuse</h3><p className="mt-2 text-xl font-semibold" role="status">{integrations ? integrations.langfuse === 'configured' ? 'Configured' : 'Not configured' : status === 'offline' ? 'Unavailable' : 'Checking...'}</p><p className="mt-2 text-xs text-slate-400">Kulcsok beállítva; trace-kézbesítés külön ellenőrzendő.</p></div>
       </div>
-      <p className="text-xs text-slate-400">{checkedAt ? `Utolsó ellenőrzés: ${checkedAt}` : 'Ellenőrzés folyamatban'}. A hálózati hiba nem bizonyítja, hogy a szolgáltatás leállt.</p>
+      <p className="text-xs text-slate-400">{checkedAt ? `Last checked: ${checkedAt}` : 'Checking in progress'}. A hálózati hiba nem bizonyítja, hogy a szolgáltatás leállt.</p>
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-semibold">GitHub Actions · legutóbbi buildfutások</h3>
@@ -756,9 +756,9 @@ function DevOpsView() {
         {ciStatus === 'available' && ciRuns.length > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="GitHub Actions futások összesítése">
             {[
-              { label: 'Lekért futások', value: ciRuns.length, tone: 'text-slate-100' },
-              { label: 'Sikeres', value: ciRuns.filter(run => run.status === 'completed' && run.conclusion === 'success').length, tone: 'text-emerald-300' },
-              { label: 'Sikertelen', value: ciRuns.filter(run => run.status === 'completed' && run.conclusion === 'failure').length, tone: 'text-rose-300' },
+              { label: 'Fetched runs', value: ciRuns.length, tone: 'text-slate-100' },
+              { label: 'Successful', value: ciRuns.filter(run => run.status === 'completed' && run.conclusion === 'success').length, tone: 'text-emerald-300' },
+              { label: 'Failed', value: ciRuns.filter(run => run.status === 'completed' && run.conclusion === 'failure').length, tone: 'text-rose-300' },
               { label: 'Folyamatban', value: ciRuns.filter(run => run.status !== 'completed').length, tone: 'text-cyan-300' },
             ].map(item => (
               <div key={item.label} className="rounded-lg border border-white/10 bg-black/20 p-3">
@@ -771,7 +771,7 @@ function DevOpsView() {
         <p className="text-xs text-slate-500">Az összesítés kizárólag a GitHub API-tól lekért legutóbbi 5 futásra vonatkozik, nem a teljes előzményre.</p>
         {ciRuns.length > 0 && <div className="divide-y divide-white/10 rounded-lg border border-white/10">
           {ciRuns.map(run => {
-            const label = run.status === 'completed' ? (run.conclusion === 'success' ? 'Sikeres' : run.conclusion === 'failure' ? 'Sikertelen' : run.conclusion ?? 'Befejeződött') : run.status === 'in_progress' ? 'Fut' : run.status;
+            const label = run.status === 'completed' ? (run.conclusion === 'success' ? 'Successful' : run.conclusion === 'failure' ? 'Failed' : run.conclusion ?? 'Befejeződött') : run.status === 'in_progress' ? 'Fut' : run.status;
             const tone = run.status !== 'completed' ? 'text-cyan-200' : run.conclusion === 'success' ? 'text-emerald-300' : 'text-amber-300';
             return <a key={run.id} href={run.html_url} target="_blank" rel="noopener noreferrer" className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm hover:bg-white/5">
               <span><span className="font-medium">{run.name}</span><span className="ml-2 text-xs text-slate-400">{run.head_sha.slice(0, 7)} · {new Date(run.created_at).toLocaleString('hu-HU')}</span></span>
@@ -779,7 +779,7 @@ function DevOpsView() {
             </a>;
           })}
         </div>}
-        {ciStatus === 'available' && ciRuns.length === 0 && <p className="text-sm text-slate-400">Még nincs megjeleníthető workflow-futás.</p>}
+        {ciStatus === 'available' && ciRuns.length === 0 && <p className="text-sm text-slate-400">No workflow runs to display yet.</p>}
         <div className="flex flex-wrap gap-4 border-t border-white/10 pt-3 text-sm">
           <a className="text-cyan-300 underline" href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">Vercel deployments</a>
           <a className="text-cyan-300 underline" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Render dashboard</a>
@@ -866,7 +866,7 @@ function InfrastructureView({ auth }: { auth: SharedAuth | null }) {
   return (
     <section className="max-w-4xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-xl font-semibold">Cloud Infrastructure</h2><p className="text-sm text-slate-400">Ellenőrizhető szolgáltatásállapotok, biztonságosan, publikus health endpointokon keresztül.</p></div>
+        <div><h2 className="text-xl font-semibold">Cloud Infrastructure</h2><p className="text-sm text-slate-400">Verifiable service statusok, biztonságosan, publikus health endpointokon keresztül.</p></div>
         <button type="button" onClick={() => setRefresh(n => n + 1)} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200">Állapot frissítése</button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -876,9 +876,9 @@ function InfrastructureView({ auth }: { auth: SharedAuth | null }) {
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Redis</h3><p className="mt-2 text-xl font-semibold" role="status">{redis}</p><p className="mt-2 text-xs text-slate-400">Valós PING a backendből; a kapcsolati adatok nem kerülnek a böngészőbe.</p></div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Langfuse exporter</h3><p className="mt-2 text-xl font-semibold" role="status">{langfuse}</p><p className="mt-2 text-xs text-slate-400">A kulcsok megléte önmagában nem igazolja a trace-ek fogadását.</p><button type="button" onClick={() => void verifyInfrastructureLangfuse()} disabled={!auth || langfuseProbeBusy} className="mt-3 rounded border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200 disabled:opacity-50">{langfuseProbeBusy ? 'Ellenőrzés…' : 'Langfuse-fogadás ellenőrzése'}</button>{!auth && <p className="mt-2 text-xs text-amber-200">Jelentkezz be admin vagy developer fiókkal.</p>}</div>
       </div>
-      <p className="text-xs text-slate-400">{checkedAt ? `Utolsó ellenőrzés: ${checkedAt}` : 'Ellenőrzés folyamatban'}. A hálózati hiba önmagában nem bizonyítja a leállást.</p>
+      <p className="text-xs text-slate-400">{checkedAt ? `Last checked: ${checkedAt}` : 'Checking in progress'}. A hálózati hiba önmagában nem bizonyítja a leállást.</p>
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
-        <h3 className="font-semibold">Szolgáltatói vezérlőpultok</h3>
+        <h3 className="font-semibold">Provider dashboards</h3>
         <p className="text-sm text-slate-400">Deployment állapot és infrastruktúra-beállítások a szolgáltatóknál ellenőrizhetők. Titkos API-kulcsokat nem helyezünk a böngészőbe.</p>
         <div className="flex flex-wrap gap-4 text-sm">
           <a className="text-cyan-300 underline" href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">Vercel</a>
@@ -986,20 +986,20 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
   return (
     <section className="max-w-4xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-xl font-semibold">Security & Access</h2><p className="text-sm text-slate-400">Publikus rendszerállapot bejelentkezés nélkül; személyes jogosultságok csak hitelesítve.</p></div>
-        <button type="button" onClick={() => setRefresh(n => n + 1)} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200">Újraellenőrzés</button>
+        <div><h2 className="text-xl font-semibold">Security & Access</h2><p className="text-sm text-slate-400">Public status without login; personal permissions require authentication.</p></div>
+        <button type="button" onClick={() => setRefresh(n => n + 1)} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200">Recheck</button>
       </div>
       <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Public backend health</h3><p className="mt-2 text-xl font-semibold" role="status">{publicHealth}</p><p className="mt-2 text-xs text-slate-400">/backend/health/live – ez nem JWT/RBAC biztonsági teszt.</p></div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-white/10 bg-white/5 p-5">
           <h3 className="text-sm text-slate-400">Authentication / JWT</h3>
           <p className="mt-2 text-xl font-semibold" role="status">{state === 'loading' ? 'Checking...' : state === 'verified' ? 'Verified' : state === 'signed-out' ? 'Optional account check' : 'Verification unavailable'}</p>
-          <p className="mt-2 text-xs text-slate-400">A fiók hitelesítése a /backend/auth/me API-val történik, nem a token böngészős dekódolásával.</p>
+          <p className="mt-2 text-xs text-slate-400">Account authentication is verified through /backend/auth/me, not by decoding tokens in the browser.</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5">
           <h3 className="text-sm text-slate-400">Role-based access (RBAC)</h3>
           <p className="mt-2 text-xl font-semibold">{account ? account.role : 'Login required for role'}</p>
-          <p className="mt-2 text-xs text-slate-400">A szerepkört a backend adja vissza. A jogosultságokat a backend érvényesíti.</p>
+          <p className="mt-2 text-xs text-slate-400">Roles are returned and enforced by the backend.</p>
         </div>
       </div>
       {account && <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-2"><h3 className="font-semibold">Authenticated account</h3><p className="text-sm text-slate-300">Email: {account.email}</p><p className="text-sm text-slate-300">Account: {account.is_active ? 'Active' : 'Disabled'}</p></div>}
@@ -1013,8 +1013,8 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
             {auditEvents.map(event => <tr key={event.id} className="border-t border-white/10"><td className="py-2 pr-4 whitespace-nowrap">{new Date(event.created_at).toLocaleString()}</td><td className="py-2 pr-4">{event.event_type}</td><td className="py-2 font-mono text-xs">{event.user_id || '—'}</td></tr>)}
           </tbody></table></div>)}
       </div>}
-      {state === 'signed-out' && <p className="text-sm text-amber-200">A publikus státusz bejelentkezés nélkül működik. A saját szerepkör ellenőrzéséhez opcionálisan jelentkezz be.</p>}
-      {state === 'error' && <p className="text-sm text-amber-200">{message}. Ez nem bizonyítja, hogy a fiók érvénytelen.</p>}
+      {state === 'signed-out' && <p className="text-sm text-amber-200">Public status works without login. Sign in to check your role.</p>}
+      {state === 'error' && <p className="text-sm text-amber-200">{message}. This does not mean the account is invalid.</p>}
       <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="font-semibold">Security scope</h3><p className="mt-2 text-sm text-slate-400">A felület nem jelenít meg jelszót, hozzáférési tokent vagy refresh tokent. A bejelentkezési auditnapló adminoknak elérhető; MFA és penetrációs teszt még nincs beállítva/igazolva.</p></div>
     </section>
   );
