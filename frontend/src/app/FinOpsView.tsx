@@ -175,7 +175,14 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
                 throw new Error((typeof code === 'string' && Object.prototype.hasOwnProperty.call(messages, code) ? messages[code] : undefined)
                   ?? `Billing request failed (HTTP ${response.status}).`);
               }
-              if (response.ok) setCloudBilling(await response.json() as CloudBilling);
+              if (response.ok) {
+                 const billing = await response.json() as CloudBilling;
+                 if (billing.status === 'billing_api_unavailable') {
+                   setCloudBillingNotice('Vercel FOCUS billing is not available for this account or team. Check actual charges in the Vercel dashboard.');
+                 } else {
+                   setCloudBilling(billing);
+                 }
+               }
             } catch (err) { setCloudBillingError(err instanceof Error ? err.message : 'Billing data unavailable.'); }
             finally { setCloudBillingLoading(false); }
           }} className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{cloudBillingLoading ? 'Loading…' : 'Fetch Vercel costs'}</button>
