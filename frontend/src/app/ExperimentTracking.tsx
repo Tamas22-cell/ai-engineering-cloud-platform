@@ -63,7 +63,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       // Show Active Model controls immediately when there is only one experiment.
       setSelected(previous => previous || (items.length === 1 ? items[0].id : ''));
       setError('');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Experiment API nem elérhető'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Experiment API unavailable'); }
     finally { setLoading(false); }
   }, []);
 
@@ -91,7 +91,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         if (!response.ok) throw new Error(`Run API: HTTP ${response.status}`);
         const data = await response.json() as Run[];
         if (!cancelled) { setRuns(data); setMetrics({}); setError(''); }
-      } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : 'Futások nem elérhetők'); }
+      } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : 'Runs unavailablek'); }
     }
     void load();
     return () => { cancelled = true; };
@@ -113,16 +113,16 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         });
         if (!refresh.ok) {
           setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous);
-          throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+          throw new Error('Session expired. Please sign in again.');
         }
         const tokens = await refresh.json() as Auth;
         setAuth(tokens);
         response = await submit(tokens.access_token);
       }
-      if (!response.ok) throw new Error(`Létrehozás sikertelen: HTTP ${response.status}`);
+      if (!response.ok) throw new Error(`Creation failed: HTTP ${response.status}`);
       setName('');
       await loadExperiments();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Létrehozás sikertelen'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Creation failed'); }
   }
 
 
@@ -158,19 +158,19 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: auth.refresh_token }),
         });
-        if (!refresh.ok) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+        if (!refresh.ok) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); throw new Error('Session expired. Please sign in again.'); }
         const tokens = await refresh.json() as Auth;
         setAuth(tokens);
         response = await submit(tokens.access_token);
       }
-      if (!response.ok) throw new Error(`Futás létrehozása: HTTP ${response.status}`);
+      if (!response.ok) throw new Error(`Run creation: HTTP ${response.status}`);
       const updated = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
-      if (!updated.ok) throw new Error(`Futások lekérdezése: HTTP ${updated.status}`);
+      if (!updated.ok) throw new Error(`Runs lekérdezése: HTTP ${updated.status}`);
       setRuns(await updated.json() as Run[]);
       setDatasetVersion('');
       setGitCommitSha('');
       setHyperparametersText('{}');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Futás létrehozása sikertelen'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Run creation failed'); }
     finally { setCreatingRun(false); }
   }
 
@@ -215,19 +215,19 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         });
         if (!refresh.ok) {
           setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous);
-          throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+          throw new Error('Session expired. Please sign in again.');
         }
         const tokens = await refresh.json() as Auth;
         setAuth(tokens);
         response = await submit(tokens.access_token);
       }
-      if (!response.ok) throw new Error(`Tanítás sikertelen: HTTP ${response.status}`);
+      if (!response.ok) throw new Error(`Training failed: HTTP ${response.status}`);
       const result = await response.json() as { run_id: string; dataset?: string; train_samples?: number; test_samples?: number; metrics: { mae: number; rmse: number; r2: number } };
       setTrainingResult(result);
       const updated = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
       if (updated.ok) setRuns(await updated.json() as Run[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Nem sikerült elindítani a tanítást.');
+      setError(e instanceof Error ? e.message : 'Nem sikerült elindítani a trainingt.');
     } finally {
       setTraining(false);
     }
@@ -238,7 +238,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     const raw = (predictInputs[runId] ?? '0, 1, 2').split(',').map(value => value.trim());
     const values = raw.map(Number);
     if (raw.length < 1 || raw.length > 1000 || raw.some(value => !value) || values.some(value => !Number.isFinite(value))) {
-      setError('Adj meg 1–1000 véges számot, vesszővel elválasztva.');
+      setError('Adj meg 1–1000 véges számot, vesszővel elresponsetva.');
       return;
     }
     setPredictBusy(runId);
@@ -258,7 +258,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         });
         if (!refresh.ok) {
           setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous);
-          throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+          throw new Error('Session expired. Please sign in again.');
         }
         const tokens = await refresh.json() as Auth;
         setAuth(tokens);
@@ -272,7 +272,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       setPredictResults(previous => ({ ...previous, [runId]: result.predictions }));
       await loadInputDrift(runId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Előrejelzés sikertelen.');
+      setError(e instanceof Error ? e.message : 'Prediction failed.');
     } finally {
       setPredictBusy(null);
     }
@@ -287,7 +287,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       setInputDrift(previous => ({ ...previous, [runId]: summary }));
       setError('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Bemeneti drift állapot nem kérdezhető le.');
+      setError(e instanceof Error ? e.message : 'Bemeneti drift status nem kérdezhető le.');
     } finally {
       setDriftBusy(null);
     }
@@ -313,7 +313,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       }));
       setComparison(results.filter((item): item is NonNullable<typeof item> => item !== null).sort((a, b) => a.mae - b.mae));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Összehasonlítás sikertelen.');
+      setError(e instanceof Error ? e.message : 'Comparison failed.');
     } finally {
       setComparing(false);
     }
@@ -329,12 +329,12 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       setReadiness(await response.json() as { ready_for_staging_review: boolean; checks: Record<string, boolean> });
       setError('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Staging ellenőrzés sikertelen');
+      setError(e instanceof Error ? e.message : 'Staging verification failed');
     }
   }
 
   async function authorizedWrite(path: string, method: 'POST' | 'PATCH', payload: object) {
-    if (!auth) throw new Error('Jelentkezz be újra.');
+    if (!auth) throw new Error('Please sign in again.');
     const submit = (token: string) => fetch(`${API}${path}`, {
       method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(payload),
@@ -345,7 +345,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: auth.refresh_token }),
       });
-      if (!refreshed.ok) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+      if (!refreshed.ok) { setAuth(previous => previous?.refresh_token === auth?.refresh_token ? null : previous); throw new Error('Session expired. Please sign in again.'); }
       const tokens = await refreshed.json() as Auth;
       setAuth(tokens);
       response = await submit(tokens.access_token);
@@ -355,21 +355,21 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
 
   async function promoteStaging(runId: string) {
     if (role !== 'admin' || !auth || promoting || !readiness?.ready_for_staging_review) return;
-    if (!window.confirm('A regisztrált modell státusza staging lesz. Ez adatbázis-módosítás, nem modelltelepítés. Folytatod?')) return;
+    if (!window.confirm('A regisztrált model státusza staging lesz. Ez adatbázis-módosítás, nem modeltelepítés. Folytatod?')) return;
     setPromoting(true);
     setError('');
     setPromotionResult('');
     try {
       await authorizedWrite(`/mlops/experiments/runs/${encodeURIComponent(runId)}/promote-to-staging`, 'POST', {});
-      setPromotionResult('Sikeres staging promotion: a modell regisztrációja staging állapotú. Artifact még nincs telepítve.');
+      setPromotionResult('Successful staging promotion: a model regisztrációja staging statusú. Artifact még nincs telepítve.');
       await checkStaging(runId);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Staging promotion sikertelen'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Staging promotion failed'); }
     finally { setPromoting(false); }
   }
 
 
   async function authenticatedGet(path: string) {
-    if (!auth) throw new Error('Jelentkezz be újra.');
+    if (!auth) throw new Error('Please sign in again.');
     let response = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${auth.access_token}` }, cache: 'no-store' });
     if (response.status === 401) {
       const refreshed = await fetch(`${API}/auth/refresh`, {
@@ -378,7 +378,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       });
       if (!refreshed.ok) {
         setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous);
-        throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+        throw new Error('Session expired. Please sign in again.');
       }
       const tokens = await refreshed.json() as Auth;
       setAuth(tokens);
@@ -396,7 +396,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     const raw = activeValues.split(',').map(value => value.trim());
     const values = raw.map(Number);
     if (!raw.length || raw.length > 1000 || raw.some(value => !value) || values.some(value => !Number.isFinite(value))) {
-      setError('Adj meg 1–1000 véges számot, vesszővel elválasztva.'); return;
+      setError('Adj meg 1–1000 véges számot, vesszővel elresponsetva.'); return;
     }
     setActivePredictBusy(true); setActivePrediction(null); setError('');
     try {
@@ -410,16 +410,16 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: auth.refresh_token }),
         });
-        if (!refreshed.ok) { setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous); throw new Error('A munkamenet lejárt. Jelentkezz be újra.'); }
+        if (!refreshed.ok) { setAuth(previous => previous?.refresh_token === auth.refresh_token ? null : previous); throw new Error('Session expired. Please sign in again.'); }
         const tokens = await refreshed.json() as Auth; setAuth(tokens); response = await submit(tokens.access_token);
       }
       if (!response.ok) {
         const detail = await response.json().catch(() => null) as { detail?: string } | null;
-        throw new Error(detail?.detail || `Aktív modell előrejelzése: HTTP ${response.status}`);
+        throw new Error(detail?.detail || `Active model predictione: HTTP ${response.status}`);
       }
       const result = await response.json() as { predictions: number[] };
       setActivePrediction(result.predictions);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Aktív modell előrejelzése sikertelen.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Active model predictione failed.'); }
     finally { setActivePredictBusy(false); }
   }
 
@@ -446,7 +446,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
 
   async function activeRequest(runId?: string) {
     if (!selected || !auth || activeBusy) return;
-    if (runId && (role !== 'admin' || !window.confirm('Aktív modellverzió cseréje? A korábbi verzió visszaállítható.'))) return;
+    if (runId && (role !== 'admin' || !window.confirm('Active modelverzió cseréje? A korábbi verzió visszaállítható.'))) return;
     setActiveBusy(true); setError(''); setActiveFeedback('');
     try {
       const url = `${API}/mlops/training/experiments/${encodeURIComponent(selected)}/active-version${runId ? '/' + encodeURIComponent(runId) : ''}`;
@@ -459,7 +459,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: auth.refresh_token }),
         });
-        if (!refresh.ok) throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+        if (!refresh.ok) throw new Error('Session expired. Please sign in again.');
         const tokens = await refresh.json() as Auth;
         setAuth(tokens); response = await submit(tokens.access_token);
       }
@@ -467,11 +467,11 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const data = await response.json() as { active_run_id: string | null };
       setActiveRunId(data.active_run_id);
       setActiveFeedback(data.active_run_id
-        ? `Aktív modellverzió: ${data.active_run_id}${runId ? ' (sikeresen aktiválva)' : ' (lekérdezve)'}`
-        : 'A lekérdezés sikeres: jelenleg nincs aktív modellverzió.');
+        ? `Active modelverzió: ${data.active_run_id}${runId ? ' (successfulen aktiválva)' : ' (lekérdezve)'}`
+        : 'A lekérdezés successful: jelenleg nincs aktív modelverzió.');
     } catch (e) {
       setActiveFeedback('');
-      setError(e instanceof Error ? e.message : 'Aktív verzió lekérdezése sikertelen');
+      setError(e instanceof Error ? e.message : 'Active verzió lekérdezése failed');
     }
     finally { setActiveBusy(false); }
   }
@@ -484,7 +484,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const response = await fetch(`${API}/mlops/experiments/${encodeURIComponent(selected)}/runs`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`Run API HTTP ${response.status}`);
       setRuns(await response.json() as Run[]);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Státusz módosítása sikertelen'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Státusz módosítása failed'); }
     finally { setBusyRun(null); }
   }
 
@@ -493,7 +493,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     const input = metricInputs[runId];
     const value = Number(input?.value);
     if (!input?.name.trim() || !input.value.trim() || !Number.isFinite(value)) {
-      setError('Adj meg metrikanevet és érvényes számértéket.'); return;
+      setError('Adj meg metricnevet és érvényes számértéket.'); return;
     }
     setBusyRun(runId); setError('');
     try {
@@ -502,7 +502,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       });
       setMetricInputs(previous => ({ ...previous, [runId]: { name: '', value: '' } }));
       await showMetrics(runId);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Metrika mentése sikertelen'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Metric savinge failed'); }
     finally { setBusyRun(null); }
   }
 
@@ -513,85 +513,85 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
       const data = await response.json() as Metric[];
       setMetrics(previous => ({ ...previous, [runId]: data }));
       setError('');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Metrikák nem elérhetők'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Metrikák unavailablek'); }
   }
 
   return <section className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h3 className="font-semibold">Experiment Tracking 2.0</h3><p className="text-xs text-slate-400">Kísérletek, futások, hyperparaméterek és verziókövetés</p></div>
-      <button type="button" onClick={() => void loadExperiments()} disabled={loading} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{loading ? 'Betöltés...' : 'Frissítés'}</button>
+      <div><h3 className="font-semibold">Experiment Tracking 2.0</h3><p className="text-xs text-slate-400">Kísérletek, runs, hyperparaméterek és verziókövetés</p></div>
+      <button type="button" onClick={() => void loadExperiments()} disabled={loading} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{loading ? 'Betöltés...' : 'Refresh'}</button>
     </div>
     {canWrite && <div className="flex flex-wrap gap-2">
-      <select aria-label="Kísérlet modellje" value={modelId} onChange={e => setModelId(e.target.value)} className="rounded border border-white/15 bg-[#11151C] p-2 text-sm">
-        <option value="">Válassz modellt</option>{models.map(m => <option key={m.id} value={m.id}>{m.name} ({m.version})</option>)}
+      <select aria-label="Kísérlet modelje" value={modelId} onChange={e => setModelId(e.target.value)} className="rounded border border-white/15 bg-[#11151C] p-2 text-sm">
+        <option value="">Válassz modelt</option>{models.map(m => <option key={m.id} value={m.id}>{m.name} ({m.version})</option>)}
       </select>
       <input aria-label="Kísérlet neve" value={name} maxLength={160} onChange={e => setName(e.target.value)} placeholder="Kísérlet neve" className="rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
-      <button type="button" onClick={() => void createExperiment()} disabled={!name.trim() || !modelId} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">Kísérlet létrehozása</button>
+      <button type="button" onClick={() => void createExperiment()} disabled={!name.trim() || !modelId} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">Kísérlet creation</button>
     </div>}
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
-    <select aria-label="Kísérlet kiválasztása" value={selected} onChange={e => setSelected(e.target.value)} className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm">
+    <select aria-label="Kísérlet kiresponsetása" value={selected} onChange={e => setSelected(e.target.value)} className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm">
       <option value="">Válassz kísérletet ({experiments.length})</option>
       {experiments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
     </select>
     {selected && <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 rounded border border-white/15 p-3 text-xs">
-        <span>Aktív modell: {activeRunId ? activeRunId.slice(0, 8) + '…' : 'nincs kiválasztva / még nincs lekérdezve'}</span>
-        <button type="button" disabled={!auth || activeBusy} onClick={() => void activeRequest()} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">{activeBusy ? 'Lekérdezés...' : 'Aktív verzió frissítése'}</button>
-        {role === 'admin' && <select aria-label="Aktív modell kiválasztása" disabled={activeBusy} value="" onChange={e => { if (e.target.value) void activeRequest(e.target.value); }} className="rounded bg-[#11151C] p-1">
+        <span>Active model: {activeRunId ? activeRunId.slice(0, 8) + '…' : 'nincs kiresponsetva / még nincs lekérdezve'}</span>
+        <button type="button" disabled={!auth || activeBusy} onClick={() => void activeRequest()} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">{activeBusy ? 'Lekérdezés...' : 'Active verzió refreshe'}</button>
+        {role === 'admin' && <select aria-label="Active model kiresponsetása" disabled={activeBusy} value="" onChange={e => { if (e.target.value) void activeRequest(e.target.value); }} className="rounded bg-[#11151C] p-1">
           <option value="">Verzió aktiválása / rollback…</option>
           {runs.filter(run => run.status === 'completed' && !!run.hyperparameters?.model_artifact).map(run => <option key={run.id} value={run.id}>{run.id.slice(0, 8)}{run.id === activeRunId ? ' (aktív)' : ''}</option>)}
         </select>}
       </div>
       {activeFeedback && <p role="status" aria-live="polite" className="text-xs text-emerald-300">{activeFeedback}</p>}
       {activeRunId && auth && <div className="space-y-2 rounded border border-white/10 p-3">
-        <p className="text-sm font-medium">Előrejelzés az aktív modellen</p>
+        <p className="text-sm font-medium">Prediction az aktív modelen</p>
         <div className="flex flex-wrap gap-2">
-          <input aria-label="Aktív modell bemeneti értékei" value={activeValues} onChange={e => setActiveValues(e.target.value)} placeholder="0, 1, 2" className="min-w-48 flex-1 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
-          <button type="button" disabled={activePredictBusy} onClick={() => void predictActive()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{activePredictBusy ? 'Számítás...' : 'Aktív modell futtatása'}</button>
+          <input aria-label="Active model bemeneti értékei" value={activeValues} onChange={e => setActiveValues(e.target.value)} placeholder="0, 1, 2" className="min-w-48 flex-1 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
+          <button type="button" disabled={activePredictBusy} onClick={() => void predictActive()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{activePredictBusy ? 'Számítás...' : 'Active model futtatása'}</button>
         </div>
         {activePrediction && <p role="status" className="break-words text-emerald-200">Eredmény: {activePrediction.map(value => value.toFixed(4)).join(', ')}</p>}
       </div>}
       <div className="space-y-2 rounded border border-white/10 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium">Artifact-verziók és visszaállítási ellenőrzés</p>
-          <button type="button" disabled={!auth || artifactBusy} onClick={() => void loadArtifactVersions()} className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200 disabled:opacity-50">{artifactBusy ? 'Betöltés...' : 'Verziók frissítése'}</button>
+          <p className="text-sm font-medium">Artifact-verziók és visszaállítási verification</p>
+          <button type="button" disabled={!auth || artifactBusy} onClick={() => void loadArtifactVersions()} className="rounded border border-cyan-400/40 px-2 py-1 text-xs text-cyan-200 disabled:opacity-50">{artifactBusy ? 'Betöltés...' : 'Verziók refreshe'}</button>
         </div>
         {artifactVersions.length > 0 && <div className="space-y-2 text-xs">
-          {artifactVersions.map(version => <p key={version.version_id} className="break-all text-slate-300">Futás: {version.run_id} · integritás: {version.integrity_ok ? 'rendben' : 'hibás'}{version.active ? ' · aktív' : ''}</p>)}
+          {artifactVersions.map(version => <p key={version.version_id} className="break-all text-slate-300">Run: {version.run_id} · integritás: {version.integrity_ok ? 'rendben' : 'hibás'}{version.active ? ' · aktív' : ''}</p>)}
           <div className="flex flex-wrap gap-2">
-            <select aria-label="Visszaállítás célfutás" value={rollbackTarget} onChange={e => { setRollbackTarget(e.target.value); setRollbackPreview(null); }} className="min-w-48 flex-1 rounded bg-[#11151C] p-2">
-              <option value="">Válassz korábbi futást</option>
+            <select aria-label="Visszaállítás célrun" value={rollbackTarget} onChange={e => { setRollbackTarget(e.target.value); setRollbackPreview(null); }} className="min-w-48 flex-1 rounded bg-[#11151C] p-2">
+              <option value="">Válassz korábbi runt</option>
               {artifactVersions.map(version => <option key={version.run_id} value={version.run_id}>{version.run_id.slice(0, 8)}{version.active ? ' (aktív)' : ''}</option>)}
             </select>
-            <button type="button" disabled={!rollbackTarget || rollbackBusy} onClick={() => void previewRollback()} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{rollbackBusy ? 'Ellenőrzés...' : 'Visszaállítás ellenőrzése'}</button>
+            <button type="button" disabled={!rollbackTarget || rollbackBusy} onClick={() => void previewRollback()} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{rollbackBusy ? 'Verification...' : 'Visszaállítás verificatione'}</button>
           </div>
           {rollbackPreview && <div role="status" className="space-y-1 rounded bg-black/20 p-2 text-xs">
-            <p className={rollbackPreview.eligible_for_activation_review === true ? 'text-emerald-300' : 'text-amber-300'}>{rollbackPreview.eligible_for_activation_review === true ? 'Az ellenőrzés alapján aktiválásra alkalmas.' : 'Az ellenőrzés nem engedélyezi az aktiválást.'}</p>
+            <p className={rollbackPreview.eligible_for_activation_review === true ? 'text-emerald-300' : 'text-amber-300'}>{rollbackPreview.eligible_for_activation_review === true ? 'Az verification alapján aktiválásra alkalmas.' : 'Az verification nem engedélyezi az aktiválást.'}</p>
             <pre className="overflow-x-auto whitespace-pre-wrap text-slate-300">{JSON.stringify(rollbackPreview.checks ?? rollbackPreview, null, 2)}</pre>
-            <p className="text-slate-400">Az aktiválás admin művelet; ez az ellenőrzés önmagában nem változtatja meg az aktív verziót.</p>
+            <p className="text-slate-400">Az aktiválás admin művelet; ez az verification önmagában nem változtatja meg az aktív verziót.</p>
             {role === 'admin' && rollbackPreview.eligible_for_activation_review === true && <button type="button" disabled={activeBusy} onClick={() => void activeRequest(rollbackTarget)} className="rounded bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{activeBusy ? 'Aktiválás...' : 'Ellenőrzött verzió aktiválása'}</button>}
           </div>}
         </div>}
       </div>
-      {!auth && <p className="text-xs text-amber-300">Az aktív modell lekérdezéséhez jelentkezz be.</p>}
-      <p className="text-xs text-slate-400">{runs.length} futás (legfeljebb 50)</p>
+      {!auth && <p className="text-xs text-amber-300">Az aktív model lekérdezéséhez jelentkezz be.</p>}
+      <p className="text-xs text-slate-400">{runs.length} run (legfeljebb 50)</p>
       {canWrite && <div className="space-y-3 rounded-lg border border-cyan-400/20 bg-black/20 p-3">
         <label className="block text-xs text-slate-300">Regressziós CSV (két numerikus oszlop: x,y; 50–2000 sor; max 200 KB)
           <input type="file" accept=".csv,text/csv" disabled={training} onChange={event => void loadTrainingCsv(event.target.files?.[0])} className="mt-2 block w-full text-sm" />
         </label>
-        {trainingDataset && <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-300"><span>{trainingDataset.fileName} · {trainingDataset.xValues.length} minta · nyers adatok csak a tréningkérésben kerülnek továbbításra</span><button type="button" onClick={() => setTrainingDataset(null)} className="rounded border border-white/20 px-2 py-1">CSV törlése</button></div>}
+        {trainingDataset && <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-300"><span>{trainingDataset.fileName} · {trainingDataset.xValues.length} minta · nyers data csak a tréningkérésben kerülnek továbbításra</span><button type="button" onClick={() => setTrainingDataset(null)} className="rounded border border-white/20 px-2 py-1">CSV deletione</button></div>}
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" disabled={training} onClick={() => void trainModel()} className="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">{training ? 'Tanítás folyamatban...' : 'Train Model'}</button>
+          <button type="button" disabled={training} onClick={() => void trainModel()} className="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-50">{training ? 'Training folyamatban...' : 'Train Model'}</button>
           <span className="text-xs text-slate-400">{trainingDataset ? 'Saját CSV regresszió' : 'Szintetikus regresszió · 200 minta'} · 200 epoch</span>
         </div>
       </div>}
       {trainingResult && <div role="status" className="rounded border border-emerald-400/30 p-3 text-sm text-emerald-200">
-        Tanítás kész · {trainingResult.dataset === 'uploaded_csv' ? 'Saját CSV' : 'Szintetikus adat'} · {trainingResult.train_samples ?? '—'} tanító / {trainingResult.test_samples ?? '—'} tesztminta · MAE: {trainingResult.metrics.mae.toFixed(4)} · RMSE: {trainingResult.metrics.rmse.toFixed(4)} · R²: {trainingResult.metrics.r2.toFixed(4)}
+        Training kész · {trainingResult.dataset === 'uploaded_csv' ? 'Saját CSV' : 'Szintetikus adat'} · {trainingResult.train_samples ?? '—'} tanító / {trainingResult.test_samples ?? '—'} tesztminta · MAE: {trainingResult.metrics.mae.toFixed(4)} · RMSE: {trainingResult.metrics.rmse.toFixed(4)} · R²: {trainingResult.metrics.r2.toFixed(4)}
       </div>}
       <div className="space-y-2 rounded-lg border border-white/10 p-3">
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void compareRuns()} disabled={comparing || !runs.some(run => run.status === 'completed')} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{comparing ? 'Összehasonlítás...' : 'Compare Runs'}</button>
-          <span className="text-xs text-slate-400">Befejezett futások rangsora MAE szerint (kisebb a jobb)</span>
+          <button type="button" onClick={() => void compareRuns()} disabled={comparing || !runs.some(run => run.status === 'completed')} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">{comparing ? 'Comparison...' : 'Compare Runs'}</button>
+          <span className="text-xs text-slate-400">Befejezett runs rangsora MAE szerint (kisebb a jobb)</span>
         </div>
         {comparison.length > 0 && <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -605,28 +605,28 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
             </tr>)}</tbody>
           </table>
           <button type="button" onClick={() => void checkStaging(comparison[0].id)} className="rounded border border-cyan-400/40 px-3 py-2 text-xs text-cyan-200">Best run staging előkészítés</button>
-          {candidateRun === comparison[0].id && <p className="mt-2 text-xs text-amber-200">Staging jelölt: {candidateRun}. Regisztrált modell: {models.find(m => m.id === experiments.find(e => e.id === selected)?.model_id)?.name ?? 'Nincs találat'}. Ez csak előkészítés, nem modelltelepítés.</p>}
+          {candidateRun === comparison[0].id && <p className="mt-2 text-xs text-amber-200">Staging jelölt: {candidateRun}. Regisztrált model: {models.find(m => m.id === experiments.find(e => e.id === selected)?.model_id)?.name ?? 'Nincs találat'}. Ez csak előkészítés, nem modeltelepítés.</p>}
           {candidateRun === comparison[0].id && readiness && <p className="mt-2 text-xs text-cyan-200">Backend validáció: {readiness.ready_for_staging_review ? 'Staging review kész' : 'Hiányos'} · {Object.entries(readiness.checks).map(([key, ok]) => `${key}: ${ok ? 'OK' : 'HIÁNYZIK'}`).join(' · ')}</p>}
           {candidateRun === comparison[0].id && readiness?.ready_for_staging_review && role === 'admin' && <button type="button" disabled={promoting} onClick={() => void promoteStaging(candidateRun)} className="mt-2 rounded border border-amber-400/50 px-3 py-2 text-xs text-amber-200 disabled:opacity-50">{promoting ? 'Staging promotion folyamatban...' : 'Promote to Staging (admin)'}</button>}
           {promotionResult && <p role="status" className="mt-2 text-xs text-emerald-200">{promotionResult}</p>}
-          <p className="mt-2 text-xs text-slate-400">Csak az MAE metrikával rendelkező futások szerepelnek. Az összehasonlítás nem telepít modellt; különböző adatkészletek eredményei nem feltétlenül összevethetők.</p>
+          <p className="mt-2 text-xs text-slate-400">Csak az MAE metrikával rendelkező runs szerepelnek. Az comparison nem telepít modelt; különböző adatkészletek eredményei nem feltétlenül összevethetők.</p>
         </div>}
         {!comparing && comparison.length === 0 && <p className="text-xs text-slate-500">Kattints a Compare Runs gombra a metrikák betöltéséhez.</p>}
       </div>
       {canWrite && <div className="space-y-3 rounded-lg border border-white/10 bg-black/20 p-3">
-        <p className="text-sm font-medium text-slate-100">Új futás adatai</p>
+        <p className="text-sm font-medium text-slate-100">Új run adatai</p>
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="space-y-1 text-xs text-slate-300">Dataset verzió (opcionális)
+          <label className="space-y-1 text-xs text-slate-300">Dataset verzió (optional)
             <input aria-label="Dataset verzió" maxLength={160} value={datasetVersion} onChange={e => setDatasetVersion(e.target.value)} placeholder="pl. dataset-v1.2" className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
           </label>
-          <label className="space-y-1 text-xs text-slate-300">Git commit SHA (opcionális, 40 hex karakter)
+          <label className="space-y-1 text-xs text-slate-300">Git commit SHA (optional, 40 hex karakter)
             <input aria-label="Git commit SHA" maxLength={40} value={gitCommitSha} onChange={e => setGitCommitSha(e.target.value)} placeholder="40 karakteres commit hash" className="w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
           </label>
         </div>
         <label className="block space-y-1 text-xs text-slate-300">Hiperparaméterek (JSON objektum)
           <textarea aria-label="Hiperparaméterek JSON" rows={3} value={hyperparametersText} onChange={e => setHyperparametersText(e.target.value)} spellCheck={false} className="w-full rounded border border-white/15 bg-[#11151C] p-2 font-mono text-sm" />
         </label>
-        <button type="button" disabled={creatingRun} onClick={() => void createRun()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{creatingRun ? 'Létrehozás...' : 'Új futás létrehozása'}</button>
+        <button type="button" disabled={creatingRun} onClick={() => void createRun()} className="rounded bg-cyan-500 px-3 py-2 text-xs text-black disabled:opacity-50">{creatingRun ? 'Creation...' : 'Új run creation'}</button>
       </div>}
       {runs.map(run => {
         const drift = inputDrift[run.id];
@@ -640,17 +640,17 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           ))}
         </div>}
         {canWrite && (run.status === 'pending' || run.status === 'running') && <div className="flex flex-wrap gap-2">
-          <input aria-label="Metrika neve" maxLength={80} value={metricInputs[run.id]?.name ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: e.target.value, value: previous[run.id]?.value ?? '' } }))} placeholder="Metrika neve" className="rounded border border-white/15 bg-[#11151C] p-2" />
-          <input aria-label="Metrika értéke" type="number" step="any" value={metricInputs[run.id]?.value ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: previous[run.id]?.name ?? '', value: e.target.value } }))} placeholder="Érték" className="w-28 rounded border border-white/15 bg-[#11151C] p-2" />
-          <button type="button" disabled={busyRun !== null} onClick={() => void recordRunMetric(run.id)} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">Metrika mentése</button>
+          <input aria-label="Metric neve" maxLength={80} value={metricInputs[run.id]?.name ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: e.target.value, value: previous[run.id]?.value ?? '' } }))} placeholder="Metric neve" className="rounded border border-white/15 bg-[#11151C] p-2" />
+          <input aria-label="Metric értéke" type="number" step="any" value={metricInputs[run.id]?.value ?? ''} onChange={e => setMetricInputs(previous => ({ ...previous, [run.id]: { name: previous[run.id]?.name ?? '', value: e.target.value } }))} placeholder="Érték" className="w-28 rounded border border-white/15 bg-[#11151C] p-2" />
+          <button type="button" disabled={busyRun !== null} onClick={() => void recordRunMetric(run.id)} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">Metric savinge</button>
         </div>}
         {canWrite && run.status === 'completed' && Boolean(run.hyperparameters?.model_artifact) && <div className="space-y-2 rounded border border-cyan-400/20 p-3">
-          <label className="block text-xs text-slate-300">Predict · bemeneti X értékek (vesszővel elválasztva)
+          <label className="block text-xs text-slate-300">Predict · bemeneti X értékek (vesszővel elresponsetva)
             <input aria-label={`Predict inputs ${run.id}`} value={predictInputs[run.id] ?? '0, 1, 2'} onChange={e => setPredictInputs(previous => ({ ...previous, [run.id]: e.target.value }))} placeholder="0, 1, 2" className="mt-1 w-full rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
           </label>
           <button type="button" disabled={predictBusy !== null} onClick={() => void predictRun(run.id)} className="rounded bg-cyan-500 px-3 py-2 text-xs font-medium text-black disabled:opacity-50">{predictBusy === run.id ? 'Számítás...' : 'Predict'}</button>
-          {predictResults[run.id] && <p role="status" className="break-words text-emerald-200">Előrejelzés: {predictResults[run.id].map(value => value.toFixed(4)).join(', ')}</p>}
-          <button type="button" disabled={driftBusy !== null} onClick={() => void loadInputDrift(run.id)} className="rounded border border-violet-400/40 px-3 py-2 text-xs text-violet-200 disabled:opacity-50">{driftBusy === run.id ? 'Drift mérés...' : 'Bemeneti drift ellenőrzése'}</button>
+          {predictResults[run.id] && <p role="status" className="break-words text-emerald-200">Prediction: {predictResults[run.id].map(value => value.toFixed(4)).join(', ')}</p>}
+          <button type="button" disabled={driftBusy !== null} onClick={() => void loadInputDrift(run.id)} className="rounded border border-violet-400/40 px-3 py-2 text-xs text-violet-200 disabled:opacity-50">{driftBusy === run.id ? 'Drift mérés...' : 'Bemeneti drift verificatione'}</button>
           {drift && <div className="rounded border border-white/10 bg-black/20 p-3 text-xs">
             <p className={drift.status === 'drift_detected' ? 'font-medium text-amber-200' : drift.status === 'within_expected_range' ? 'font-medium text-emerald-200' : 'font-medium text-slate-300'}>
               {drift.status === 'drift_detected' ? 'Drift jelzés' : drift.status === 'within_expected_range' ? 'A minta a beállított tartományon belül' : drift.status === 'insufficient_data' ? 'Kevés adat a minősítéshez' : drift.status === 'no_inference_data' ? 'Nincs rögzített inference-adat' : drift.status}
@@ -662,7 +662,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
           </div>}
         </div>}
         <button type="button" onClick={() => void showMetrics(run.id)} className="text-cyan-300 underline">Metrikák megjelenítése</button>
-        {metrics[run.id] && <div className="space-y-1">{metrics[run.id].length ? metrics[run.id].map(m => <p key={m.id}>{m.name}: {m.value} (step {m.step})</p>) : <p>Még nincs metrika.</p>}</div>}
+        {metrics[run.id] && <div className="space-y-1">{metrics[run.id].length ? metrics[run.id].map(m => <p key={m.id}>{m.name}: {m.value} (step {m.step})</p>) : <p>No metric.</p>}</div>}
       </div>;
       })}
     </div>}
