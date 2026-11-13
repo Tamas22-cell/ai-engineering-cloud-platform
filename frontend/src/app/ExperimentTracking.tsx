@@ -535,7 +535,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
     </select>
     {selected && <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 rounded border border-white/15 p-3 text-xs">
-        <span>Active model: {activeRunId ? activeRunId.slice(0, 8) + '…' : 'nincs kiresponsetva / még nincs loaded'}</span>
+        <span>Active model: {activeRunId ? activeRunId.slice(0, 8) + '…' : 'not selected / not loaded yet'}</span>
         <button type="button" disabled={!auth || activeBusy} onClick={() => void activeRequest()} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 disabled:opacity-50">{activeBusy ? 'Loading...' : 'Refresh active version'}</button>
         {role === 'admin' && <select aria-label="Select active model" disabled={activeBusy} value="" onChange={e => { if (e.target.value) void activeRequest(e.target.value); }} className="rounded bg-[#11151C] p-1">
           <option value="">Activate version / rollback…</option>
@@ -656,7 +656,7 @@ export default function ExperimentTracking({ auth, setAuth, models, role }: { au
               {drift.status === 'drift_detected' ? 'Drift detected' : drift.status === 'within_expected_range' ? 'Sample within expected range' : drift.status === 'insufficient_data' ? 'Insufficient data to classify' : drift.status === 'no_inference_data' ? 'No recorded inference data' : drift.status}
             </p>
             <p className="mt-1 text-slate-300">{drift.sample_count} values · {drift.batch_count} batch · 30 days</p>
-            {drift.mean_shift_in_std !== null && <p className="mt-1 text-slate-400">Mean shift: {drift.mean_shift_in_std.toFixed(2)} standard deviations · standard deviation ratio: {(drift.std_ratio ?? 0).toFixed(2)} · &gt;3σ érték: {((drift.outlier_rate ?? 0) * 100).toFixed(1)}%</p>}
+            {drift.mean_shift_in_std !== null && <p className="mt-1 text-slate-400">Mean shift: {drift.mean_shift_in_std.toFixed(2)} standard deviations · standard deviation ratio: {(drift.std_ratio ?? 0).toFixed(2)} · &gt;3σ values: {((drift.outlier_rate ?? 0) * 100).toFixed(1)}%</p>}
             {drift.signals.length > 0 && <p className="mt-1 text-amber-200">Signals: {drift.signals.join(', ')}</p>}
             <p className="mt-1 text-slate-500">Backend stores only aggregate data, not raw inputs. Heuristic signal, not a quality guarantee.</p>
           </div>}
