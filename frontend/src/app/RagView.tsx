@@ -39,7 +39,7 @@ export default function RagView({ onTelemetry, auth, setAuth }: { onTelemetry?: 
     } else if (question.includes('agent') || question.includes('langgraph')) {
       setDemoAnswer('Sample document [2]: Multi-agent RAG has four stages: Planner → Retriever → Synthesizer → Reviewer. This is a static demonstration, not live document retrieval.');
     } else {
-      setDemoAnswer('No predefined answer exists in the two public sample documents. Try: 'What is RAG?' or 'How does multi-agent RAG work?'');
+      setDemoAnswer('No predefined answer exists in the two public sample documents. Try: What is RAG? or How does multi-agent RAG work?');
     }
   }
   const [file, setFile] = useState<File | null>(null);
