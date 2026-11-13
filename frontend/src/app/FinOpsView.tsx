@@ -57,10 +57,10 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       signal: AbortSignal.timeout(15000),
     }).then(async response => {
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.detail || `Render számlaadatok: HTTP ${response.status}`);
+      if (!response.ok) throw new Error(data.detail || `Render invoicedata: HTTP ${response.status}`);
       return data as RenderBillingEntry[];
     }).then(data => { if (active) setRenderEntries(data); })
-      .catch(err => { if (active) setRenderEntryError(err instanceof Error ? err.message : 'Render-számlaadatok nem érhetők el.'); });
+      .catch(err => { if (active) setRenderEntryError(err instanceof Error ? err.message : 'Render-invoicedata nem érhetők el.'); });
     return () => { active = false; };
   }, [auth]);
 
@@ -94,18 +94,18 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <CoverageCard title="Mért használat" status="Aktív" detail="Egy- és többügynökös RAG-válaszok OpenAI tokenjei" tone="green" />
-        <CoverageCard title="Tokenköltség" status={finopsStatus?.pricing_configured ? "Árazás aktív" : finopsStatus ? "Árbeállítás szükséges" : "Állapot betöltése"} detail="gpt-4.1-mini · OpenAI standard tokenárak alapján" tone={finopsStatus?.pricing_configured ? "green" : "amber"} />
-        <CoverageCard title="Render-számla" status="Számlák a Renderen" detail="A FinOpsban a kézi rögzítés opcionális. A 0 USD-s számlával nincs teendőd." tone="amber" />
+        <CoverageCard title="Measured usage" status="Active" detail="Egy- és többügynökös RAG-responseok OpenAI tokenjei" tone="green" />
+        <CoverageCard title="Tokenköltség" status={finopsStatus?.pricing_configured ? "Árazás aktív" : finopsStatus ? "Ársetting szükséges" : "Status betöltése"} detail="gpt-4.1-mini · OpenAI standard tokenárak alapján" tone={finopsStatus?.pricing_configured ? "green" : "amber"} />
+        <CoverageCard title="Render-invoice" status="Invoices a Renderen" detail="A FinOpsban a kézi rögzítés optional. A 0 USD-s számlával nincs teendőd." tone="amber" />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Hivatalos számlák és aktuális költségek a Render felületén.</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">Render számlák megtekintése (új fül)</a></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Hivatalos invoices és aktuális költségek a Render felületén.</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">Render invoices megtekintése (új fül)</a></div>
       {auth && <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.03] p-4">
         <div className="mb-3">
-          <h3 className="font-semibold">FinOpsban rögzített Render-számlák</h3>
-          <p className="mt-1 text-xs text-slate-400">A lista csak a kézzel elmentett másolatokat tartalmazza. A 0 USD-s számlákat nyugodtan kihagyhatod.</p>
+          <h3 className="font-semibold">FinOpsban rögzített Render-invoices</h3>
+          <p className="mt-1 text-xs text-slate-400">A lista csak a kézzel elmentett másolatokat tartalmazza. A 0 USD-s invoicesat nyugodtan kihagyhatod.</p>
         </div>
         <details>
-          <summary className="mb-3 cursor-pointer text-sm font-medium text-amber-200">Számla kézi rögzítése (opcionális)</summary>
+          <summary className="mb-3 cursor-pointer text-sm font-medium text-amber-200">Invoice kézi rögzítése (optional)</summary>
         <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" onSubmit={async event => {
           event.preventDefault(); setRenderEntryLoading(true); setRenderEntryError('');
           try {
@@ -116,38 +116,38 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
               signal: AbortSignal.timeout(20000),
             });
             const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.detail || `Render számla mentése: HTTP ${response.status}`);
+            if (!response.ok) throw new Error(data.detail || `Render invoice savinge: HTTP ${response.status}`);
             setRenderEntries(current => [data as RenderBillingEntry, ...current]);
             setRenderAmount(''); setRenderInvoiceNumber(''); setRenderNote('');
-          } catch (err) { setRenderEntryError(err instanceof Error ? err.message : 'A Render-számla mentése nem sikerült.'); }
+          } catch (err) { setRenderEntryError(err instanceof Error ? err.message : 'A Render-invoice savinge nem sikerült.'); }
           finally { setRenderEntryLoading(false); }
         }}>
           <label className="text-xs text-slate-300">Számlázási hónap<input required type="month" value={renderPeriod} onChange={event => setRenderPeriod(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
-          <label className="text-xs text-slate-300">Összeg<input required type="number" min="0" step="0.01" value={renderAmount} onChange={event => setRenderAmount(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
-          <label className="text-xs text-slate-300">Pénznem<select value={renderCurrency} onChange={event => setRenderCurrency(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white"><option>USD</option><option>EUR</option><option>HUF</option></select></label>
-          <label className="text-xs text-slate-300">Számlaszám (opcionális)<input value={renderInvoiceNumber} onChange={event => setRenderInvoiceNumber(event.target.value)} maxLength={100} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
-          <div className="flex items-end"><button disabled={renderEntryLoading} className="w-full rounded-lg bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{renderEntryLoading ? 'Mentés…' : 'Render-számla mentése'}</button></div>
-          <label className="text-xs text-slate-300 sm:col-span-2 lg:col-span-5">Megjegyzés (opcionális)<input value={renderNote} onChange={event => setRenderNote(event.target.value)} maxLength={500} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
+          <label className="text-xs text-slate-300">Amount<input required type="number" min="0" step="0.01" value={renderAmount} onChange={event => setRenderAmount(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
+          <label className="text-xs text-slate-300">Currency<select value={renderCurrency} onChange={event => setRenderCurrency(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white"><option>USD</option><option>EUR</option><option>HUF</option></select></label>
+          <label className="text-xs text-slate-300">Invoiceszám (optional)<input value={renderInvoiceNumber} onChange={event => setRenderInvoiceNumber(event.target.value)} maxLength={100} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
+          <div className="flex items-end"><button disabled={renderEntryLoading} className="w-full rounded-lg bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{renderEntryLoading ? 'Save…' : 'Render-invoice savinge'}</button></div>
+          <label className="text-xs text-slate-300 sm:col-span-2 lg:col-span-5">Note (optional)<input value={renderNote} onChange={event => setRenderNote(event.target.value)} maxLength={500} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
         </form>
         </details>
         {renderEntryError && <p role="alert" className="mt-3 text-sm text-amber-200">{renderEntryError}</p>}
         <div className="mt-4 overflow-x-auto rounded-lg border border-white/10">
-          <table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-white/5 text-slate-300"><tr><th className="p-3">Hónap</th><th className="p-3">Összeg</th><th className="p-3">Számlaszám</th><th className="p-3">Megjegyzés</th><th className="p-3">Művelet</th></tr></thead>
+          <table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-white/5 text-slate-300"><tr><th className="p-3">Month</th><th className="p-3">Amount</th><th className="p-3">Invoiceszám</th><th className="p-3">Note</th><th className="p-3">Művelet</th></tr></thead>
             <tbody>{renderEntries.map(entry => <tr key={entry.id} className="border-t border-white/10 text-slate-200"><td className="p-3">{entry.period}</td><td className="p-3">{Number(entry.amount).toFixed(2)} {entry.currency}</td><td className="p-3">{entry.invoice_number || '—'}</td><td className="p-3">{entry.note || '—'}</td><td className="p-3"><button type="button" onClick={async () => {
               try {
                 const response = await fetch('/backend/finops/render-billing/' + encodeURIComponent(entry.id), { method: 'DELETE', headers: { Authorization: 'Bearer ' + auth.access_token }, signal: AbortSignal.timeout(15000) });
                 if (!response.ok) throw new Error();
                 setRenderEntries(current => current.filter(row => row.id !== entry.id));
-              } catch { setRenderEntryError('A számlabejegyzés törlése nem sikerült.'); }
-            }} className="text-rose-300 hover:text-rose-200">Törlés</button></td></tr>)}
-              {renderEntries.length === 0 && <tr><td className="p-3 text-slate-400" colSpan={5}>Még nincs rögzített Render-számla.</td></tr>}
+              } catch { setRenderEntryError('A invoicebejegyzés deletione nem sikerült.'); }
+            }} className="text-rose-300 hover:text-rose-200">Delete</button></td></tr>)}
+              {renderEntries.length === 0 && <tr><td className="p-3 text-slate-400" colSpan={5}>No rögzített Render-invoice.</td></tr>}
             </tbody>
           </table>
         </div>
       </div>}
       <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 text-sm text-slate-300">
         <strong className="text-cyan-200">Mit mér ez az oldal?</strong>
-        <p className="mt-1">Sikeres, bejelentkezett RAG-válaszgenerálások tényleges tokenhasználatát az elmúlt 30 napból. Az embedding-hívások és a szolgáltatói infrastruktúra költségei külön mérés nélkül nem jelennek meg itt.</p>
+        <p className="mt-1">Successful, bejelentkezett RAG-responsegenerálások tényleges tokenhasználatát az elmúlt 30 napból. Az embedding-hívások és a szolgáltatói infrastruktúra költségei külön mérés nélkül nem jelennek meg itt.</p>
       </div>
       {auth && <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -172,10 +172,10 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
                 };
                 const code = data?.detail?.code;
                 throw new Error((typeof code === 'string' && Object.prototype.hasOwnProperty.call(messages, code) ? messages[code] : undefined)
-                  ?? `A számlázási lekérés sikertelen (HTTP ${response.status}).`);
+                  ?? `A számlázási lekérés failed (HTTP ${response.status}).`);
               }
               setCloudBilling(await response.json() as CloudBilling);
-            } catch (err) { setCloudBillingError(err instanceof Error ? err.message : 'A számlázási adatok nem érhetők el.'); }
+            } catch (err) { setCloudBillingError(err instanceof Error ? err.message : 'A számlázási data nem érhetők el.'); }
             finally { setCloudBillingLoading(false); }
           }} className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{cloudBillingLoading ? 'Lekérés…' : 'Vercel-költségek lekérése'}</button>
         </div>
@@ -188,7 +188,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
         </div>}
       </div>}
       {!auth && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-amber-200"><span>A személyes kimutatás megtekintéséhez jelentkezz be.</span><button type="button" onClick={() => onNavigate('agents')} className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950 hover:bg-amber-200">Belépés az Agents oldalon</button></div>}
-      {loading && <p className="text-sm text-slate-400">Használati adatok betöltése…</p>}
+      {loading && <p className="text-sm text-slate-400">Használati data betöltése…</p>}
       {error && <div role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/5 p-4 text-sm text-rose-200">{error}</div>}
       {report && <>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -204,7 +204,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
           <table className="w-full min-w-[600px] text-left text-sm">
             <thead className="bg-white/5 text-slate-300"><tr><th className="p-3">UTC dátum</th><th className="p-3">Kérések</th><th className="p-3">Tokenek</th><th className="p-3">Árazott kérések</th><th className="p-3">Becsült költség</th></tr></thead>
             <tbody>{report.daily.map(day => <tr key={day.date} className="border-t border-white/10 text-slate-200"><td className="p-3">{day.date}</td><td className="p-3">{day.requests}</td><td className="p-3">{day.tokens.toLocaleString()}</td><td className="p-3">{day.priced_requests}</td><td className="p-3">{usd(day.estimated_cost_usd)}</td></tr>)}
-              {report.daily.length === 0 && <tr><td className="p-4 text-slate-400" colSpan={5}>Még nincs rögzített RAG-használat az időszakban.</td></tr>}
+              {report.daily.length === 0 && <tr><td className="p-4 text-slate-400" colSpan={5}>No rögzített RAG-használat az időszakban.</td></tr>}
             </tbody>
           </table>
         </div>
