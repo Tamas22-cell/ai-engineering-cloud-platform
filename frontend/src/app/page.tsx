@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -462,12 +462,12 @@ function SkillsView({ onNavigate }: { onNavigate: (page: string) => void }) {
   const skills = [
     { name: 'Python Backend', detail: 'FastAPI szolgáltatás, hitelesítés és valós health ellenőrzés.', status: 'API állapot élő', page: 'overview' },
     { name: 'Cloud Infrastructure', detail: 'Vercel frontend, Render API és PostgreSQL állapotellenőrzés.', status: cloudStatus, page: 'infra' },
-    { name: 'Docker / Kubernetes', detail: 'Docker konfiguráció elérhető; Kubernetes állapot nincs igazolva.', status: 'Részben kész', page: 'devops' },
+    { name: 'Docker / Kubernetes', detail: 'Docker Compose validált; Kubernetes API 1/1 Running, PostgreSQL és Redis kapcsolat igazolt.', status: 'Kubernetes API élő', page: 'devops' },
     { name: 'CI/CD', detail: 'GitHub Actions legutóbbi futásai közvetlenül megjelennek.', status: 'Élő futások', page: 'devops' },
     { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: 'Bejelentkezés kell', page: 'agents' },
     { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: 'Bejelentkezés kell', page: 'rag' },
     { name: 'MLOps', detail: 'Tanítás, artifact-verziók, aktív predikció és ellenőrzött visszaállítás.', status: 'Admin aktiválás', page: 'mlops' },
-    { name: 'Security & Access', detail: 'JWT-fiók és backend által visszaadott szerepkör; mély audit külön feladat.', status: 'Részben kész', page: 'security' },
+    { name: 'Security & Access', detail: 'JWT és RBAC tesztek sikeresek; mély biztonsági audit még hátravan.', status: 'JWT/RBAC tesztelve', page: 'security' },
   ];
 
   return (
@@ -484,7 +484,7 @@ function SkillsView({ onNavigate }: { onNavigate: (page: string) => void }) {
               <div className="mt-1 text-xs text-[#9AA3AE]">{skill.detail}</div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
+              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek', 'Kubernetes API élő', 'JWT/RBAC tesztelve'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
               <button type="button" onClick={() => onNavigate(skill.page)} className="rounded border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/5">Megnyitás</button>
             </div>
           </div>
@@ -947,5 +947,3 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
     </section>
   );
 }
-
-
