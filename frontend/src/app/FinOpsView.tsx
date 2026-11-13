@@ -24,6 +24,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
   const [finopsStatus, setFinopsStatus] = useState<FinOpsStatus | null>(null);
   const [cloudBilling, setCloudBilling] = useState<CloudBilling | null>(null);
   const [cloudBillingError, setCloudBillingError] = useState('');
+  const [cloudBillingNotice, setCloudBillingNotice] = useState('');
   const [cloudBillingLoading, setCloudBillingLoading] = useState(false);
   const [renderEntries, setRenderEntries] = useState<RenderBillingEntry[]>([]);
   const [renderPeriod, setRenderPeriod] = useState(new Date().toISOString().slice(0, 7));
@@ -153,7 +154,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="font-semibold">Vercel billing · separate provider</h3><p className="mt-1 text-xs text-slate-400">This query shows Vercel FOCUS costs only; it does not include Render invoices.</p></div>
           <button type="button" disabled={cloudBillingLoading} onClick={async () => {
-            setCloudBillingLoading(true); setCloudBillingError(''); setCloudBilling(null);
+            setCloudBillingLoading(true); setCloudBillingError(''); setCloudBillingNotice(''); setCloudBilling(null);
             try {
               const response = await fetch('/backend/finops/cloud-billing', { cache: 'no-store', headers: { Authorization: 'Bearer ' + auth.access_token }, signal: AbortSignal.timeout(30000) });
               if (!response.ok) {
@@ -174,16 +175,17 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
                 throw new Error((typeof code === 'string' && Object.prototype.hasOwnProperty.call(messages, code) ? messages[code] : undefined)
                   ?? `Billing request failed (HTTP ${response.status}).`);
               }
-              setCloudBilling(await response.json() as CloudBilling);
+              if (response.ok) setCloudBilling(await response.json() as CloudBilling);
             } catch (err) { setCloudBillingError(err instanceof Error ? err.message : 'Billing data unavailable.'); }
             finally { setCloudBillingLoading(false); }
           }} className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{cloudBillingLoading ? 'Loading…' : 'Fetch Vercel costs'}</button>
         </div>
-        {cloudBillingError && <p role="alert" className="mt-3 text-sm text-amber-200">{cloudBillingError}</p>}
+        {cloudBillingNotice && <p className="mt-3 text-sm text-slate-300">{cloudBillingNotice} <a className="text-cyan-300 underline" href="https://vercel.com/dashboard" target="_blank" rel="noreferrer">Open Vercel dashboard</a></p>}
+         {cloudBillingError && <p role="alert" className="mt-3 text-sm text-amber-200">{cloudBillingError}</p>}
         {cloudBilling && <div className="mt-4 space-y-4">
           {cloudBilling.totals.length === 0
             ? <p className="text-sm text-slate-300">Vercel returned no billing items for the last 30 days.</p>
-            : <div className="grid gap-3 sm:grid-cols-2">{cloudBilling.totals.map(total => <Metric key={total.currency} label={'Vercel · ' + cloudBilling.window_days + ' nap · ' + total.currency} value={new Intl.NumberFormat('en-US', { style: 'currency', currency: total.currency, maximumFractionDigits: 4 }).format(Number(total.billed_cost) || 0)} />)}</div>}
+            : <div className="grid gap-3 sm:grid-cols-2">{cloudBilling.totals.map(total => <Metric key={total.currency} label={'Vercel · ' + cloudBilling.window_days + ' days · ' + total.currency} value={new Intl.NumberFormat('en-US', { style: 'currency', currency: total.currency, maximumFractionDigits: 4 }).format(Number(total.billed_cost) || 0)} />)}</div>}
           <div className="space-y-2">{cloudBilling.services.map((row, index) => <div key={row.service + '-' + row.currency + '-' + index} className="flex justify-between gap-4 border-t border-white/10 py-2 text-sm"><span>{row.service} · {row.currency}</span><span>{Number(row.billed_cost).toFixed(4)}</span></div>)}</div>
         </div>}
       </div>}
