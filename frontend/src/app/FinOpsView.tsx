@@ -101,7 +101,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Official invoices and current costs are available in Render.</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">View Render invoices (new tab)</a></div>
       {auth && <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.03] p-4">
         <div className="mb-3">
-          <h3 className="font-semibold">FinOpsban rögzített Render invoices</h3>
+          <h3 className="font-semibold">Recorded Render invoices</h3>
           <p className="mt-1 text-xs text-slate-400">Only manually saved copies are listed. You can skip $0 invoices.</p>
         </div>
         <details>
@@ -119,7 +119,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
             if (!response.ok) throw new Error(data.detail || `Render invoice savinge: HTTP ${response.status}`);
             setRenderEntries(current => [data as RenderBillingEntry, ...current]);
             setRenderAmount(''); setRenderInvoiceNumber(''); setRenderNote('');
-          } catch (err) { setRenderEntryError(err instanceof Error ? err.message : 'A Render invoice savinge nem sikerült.'); }
+          } catch (err) { setRenderEntryError(err instanceof Error ? err.message : 'Could not save the Render invoice.'); }
           finally { setRenderEntryLoading(false); }
         }}>
           <label className="text-xs text-slate-300">Billing month<input required type="month" value={renderPeriod} onChange={event => setRenderPeriod(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
@@ -140,7 +140,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
                 setRenderEntries(current => current.filter(row => row.id !== entry.id));
               } catch { setRenderEntryError('Could not delete the invoice entry.'); }
             }} className="text-rose-300 hover:text-rose-200">Delete</button></td></tr>)}
-              {renderEntries.length === 0 && <tr><td className="p-3 text-slate-400" colSpan={5}>No rögzített Render invoice.</td></tr>}
+              {renderEntries.length === 0 && <tr><td className="p-3 text-slate-400" colSpan={5}>No recorded Render invoices.</td></tr>}
             </tbody>
           </table>
         </div>
