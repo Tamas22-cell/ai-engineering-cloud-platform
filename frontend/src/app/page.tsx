@@ -253,8 +253,8 @@ function OverviewView({ onNavigate, auth }: { onNavigate: (page: string) => void
     },
     {
       title: 'Cloud & CI/CD',
-      detail: 'Live GitHub Actions runs; Kubernetes / Terraform not verified.',
-      state: 'Partly connected · open DevOps for current runs',
+      detail: 'GitHub CI, Docker Compose and Kubernetes manifest checks passed. Live Kubernetes / Terraform deployment not configured.',
+      state: 'CI checks passed · open DevOps for details',
     },
     {
       title: 'Observability',
@@ -357,14 +357,14 @@ function OverviewView({ onNavigate, auth }: { onNavigate: (page: string) => void
             <p className="text-[#9AA3AE] text-sm min-h-10">
               {module.detail}
             </p>
-            <div className={`mt-3 text-xs ${module.state.startsWith('Partly') ? 'text-amber-300' : module.state.startsWith('Implemented') || module.state.startsWith('JWT/RBAC') ? 'text-emerald-300' : 'text-slate-300'}`}>
+            <div className={`mt-3 text-xs ${module.state.startsWith('Partly') ? 'text-amber-300' : module.state.startsWith('CI checks passed') || module.state.startsWith('Implemented') || module.state.startsWith('JWT/RBAC') ? 'text-emerald-300' : 'text-slate-300'}`}>
               {module.state}
             </div>
           </Card>
         ))}
       </div>
 
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
         Verification policy: only successful real tests and authenticated
         integrations can change a module to Verified. Demo data is never
         presented as production telemetry.
