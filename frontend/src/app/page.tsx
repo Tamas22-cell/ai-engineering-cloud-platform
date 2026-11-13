@@ -429,6 +429,48 @@ function Placeholder({
 
 function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; auth: SharedAuth | null }) {
   const [cloudStatus, setCloudStatus] = useState('Ellenőrzés...');
+  const [kubernetesStatus, setKubernetesStatus] = useState('CI ellenőrzés...');
+  const [securityStatus, setSecurityStatus] = useState('JWT ellenőrzés...');
+
+  useEffect(() => {
+    let cancelled = false;
+    async function verifyKubernetes() {
+      try {
+        const runs = await fetch('https://api.github.com/repos/Tamas22-cell/ai-engineering-cloud-platform/actions/runs?branch=main&status=success&per_page=1', { cache: 'no-store', signal: AbortSignal.timeout(12000) });
+        if (!runs.ok) throw new Error('GitHub CI unavailable');
+        const runData = await runs.json() as { workflow_runs?: Array<{ id: number }> };
+        const runId = runData.workflow_runs?.[0]?.id;
+        if (!runId) throw new Error('No successful CI run');
+        const jobs = await fetch(`https://api.github.com/repos/Tamas22-cell/ai-engineering-cloud-platform/actions/runs/${runId}/jobs?per_page=100`, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
+        if (!jobs.ok) throw new Error('CI jobs unavailable');
+        const jobData = await jobs.json() as { jobs?: Array<{ name: string; conclusion: string | null }> };
+        const required = ['docker-compose-validation', 'kubernetes-validation'];
+        const passed = required.every(name => jobData.jobs?.some(job => job.name === name && job.conclusion === 'success'));
+        if (!cancelled) setKubernetesStatus(passed ? 'CI validált · cluster nem igazolt' : 'CI validáció hiányzik');
+      } catch {
+        if (!cancelled) setKubernetesStatus('CI állapot nem elérhető');
+      }
+    }
+    void verifyKubernetes();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const accessToken = auth?.access_token;
+    if (!accessToken) { setSecurityStatus('Bejelentkezés kell'); return; }
+    async function verifySecurity() {
+      setSecurityStatus('JWT ellenőrzés...');
+      try {
+        const response = await fetch('/backend/auth/me', { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store', signal: AbortSignal.timeout(12000) });
+        if (!cancelled) setSecurityStatus(response.ok ? 'JWT ellenőrizve · audit hátra' : 'JWT ellenőrzés sikertelen');
+      } catch {
+        if (!cancelled) setSecurityStatus('JWT ellenőrzés nem elérhető');
+      }
+    }
+    void verifySecurity();
+    return () => { cancelled = true; };
+  }, [auth?.access_token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -462,12 +504,12 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
   const skills = [
     { name: 'Python Backend', detail: 'FastAPI szolgáltatás, hitelesítés és valós health ellenőrzés.', status: 'API állapot élő', page: 'overview' },
     { name: 'Cloud Infrastructure', detail: 'Vercel frontend, Render API és PostgreSQL állapotellenőrzés.', status: cloudStatus, page: 'infra' },
-    { name: 'Docker / Kubernetes', detail: 'Docker konfiguráció elérhető; Kubernetes állapot nincs igazolva.', status: 'Részben kész', page: 'devops' },
+    { name: 'Docker / Kubernetes', detail: 'Docker Compose és Kubernetes manifestek CI-validációja; élő cluster nem igazolt.', status: kubernetesStatus, page: 'devops' },
     { name: 'CI/CD', detail: 'GitHub Actions legutóbbi futásai közvetlenül megjelennek.', status: 'Élő futások', page: 'devops' },
     { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'agents' },
     { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'rag' },
     { name: 'MLOps', detail: 'Tanítás, artifact-verziók, aktív predikció és ellenőrzött visszaállítás.', status: 'Admin aktiválás', page: 'mlops' },
-    { name: 'Security & Access', detail: 'JWT-fiók és backend által visszaadott szerepkör; mély audit külön feladat.', status: 'Részben kész', page: 'security' },
+    { name: 'Security & Access', detail: 'JWT hitelesítés ellenőrzése a backend /auth/me végpontján; mély audit külön feladat.', status: securityStatus, page: 'security' },
   ];
 
   return (
