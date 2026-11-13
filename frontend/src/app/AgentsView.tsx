@@ -272,7 +272,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
           const slowCount = successful.filter(run => run.duration_ms > slowThresholdMs).length;
           return <div className="space-y-3 rounded-lg border border-white/10 p-3">
             <div className="flex flex-wrap justify-between gap-3 text-xs text-[#9AA3AE]">
-              <span>Error rate (last {runs.length} futás): <strong className="text-white">{(failures / runs.length * 100).toFixed(1)}%</strong></span>
+              <span>Error rate (last {runs.length} runs): <strong className="text-white">{(failures / runs.length * 100).toFixed(1)}%</strong></span>
               <span>Average successful run: <strong className="text-white">{average === null ? 'No data' : `${(average / 1000).toFixed(2)} s`}</strong></span>
               <span>P95 successful runs: <strong className="text-white">{p95 === null ? 'No data' : `${(p95 / 1000).toFixed(2)} s`}</strong></span>
               <span className={slowCount ? 'text-amber-300' : 'text-[#9AA3AE]'}>Slow runs (&gt;15 s): <strong>{slowCount}</strong></span>
