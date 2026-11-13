@@ -5,6 +5,20 @@ on:
   pull_request:
   workflow_dispatch:
 jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Python vulnerability auditor
+        run: python -m pip install pip-audit
+      - name: Audit backend dependency vulnerabilities
+        run: python -m pip_audit -r backend/requirements.txt --progress-spinner off
+      - name: Audit frontend production dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
   kubernetes-validation:
     runs-on: ubuntu-latest
     steps:
