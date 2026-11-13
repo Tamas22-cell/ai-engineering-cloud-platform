@@ -457,11 +457,12 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
 
   useEffect(() => {
     let cancelled = false;
-    if (!auth?.access_token) { setSecurityStatus('Bejelentkezés kell'); return; }
+    const accessToken = auth?.access_token;
+    if (!accessToken) { setSecurityStatus('Bejelentkezés kell'); return; }
     async function verifySecurity() {
       setSecurityStatus('JWT ellenőrzés...');
       try {
-        const response = await fetch('/backend/auth/me', { headers: { Authorization: `Bearer ${auth.access_token}` }, cache: 'no-store', signal: AbortSignal.timeout(12000) });
+        const response = await fetch('/backend/auth/me', { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store', signal: AbortSignal.timeout(12000) });
         if (!cancelled) setSecurityStatus(response.ok ? 'JWT ellenőrizve · audit hátra' : 'JWT ellenőrzés sikertelen');
       } catch {
         if (!cancelled) setSecurityStatus('JWT ellenőrzés nem elérhető');
