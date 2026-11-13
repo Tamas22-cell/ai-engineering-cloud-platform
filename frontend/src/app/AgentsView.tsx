@@ -51,7 +51,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = (await response.json()) as WorkflowRun[];
         if (!cancelled) { setRuns(data); setRunsError(''); }
-      } catch { if (!cancelled) setRunsError('A futási előzmények nem érhetők el.'); }
+      } catch { if (!cancelled) setRunsError('Run history is unavailable.'); }
     }
     void loadRuns();
     return () => { cancelled = true; };
@@ -79,14 +79,14 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(typeof body?.detail === 'string' ? body.detail : `Bejelentkezési hiba: ${response.status}`);
+        throw new Error(typeof body?.detail === 'string' ? body.detail : `Sign ini hiba: ${response.status}`);
       }
       const tokens = (await response.json()) as AuthResponse;
       setAuth(tokens);
       setPassword('');
     } catch (reason) {
       setAuth(null);
-      setError(reason instanceof Error ? reason.message : 'Bejelentkezés sikertelen.');
+      setError(reason instanceof Error ? reason.message : 'Sign in sikertelen.');
     } finally {
       setBusy(false);
     }
@@ -104,18 +104,18 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
       });
       if (!registration.ok) {
         const body = await registration.json().catch(() => null);
-        throw new Error(typeof body?.detail === 'string' ? body.detail : `Regisztráció sikertelen (HTTP ${registration.status})`);
+        throw new Error(typeof body?.detail === 'string' ? body.detail : `Registration failed (HTTP ${registration.status})`);
       }
       const login = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      if (!login.ok) throw new Error('Fiók létrehozva. Jelentkezz be a megadott adatokkal.');
+      if (!login.ok) throw new Error('Account created. Please sign in with your credentials.');
       setAuth((await login.json()) as AuthResponse);
       setPassword('');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Regisztráció sikertelen.');
+      setError(reason instanceof Error ? reason.message : 'Registration failed.');
     } finally {
       setBusy(false);
     }
@@ -143,7 +143,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort('A kérés időkorlátja lejárt.'), mode === 'workflow' ? 150000 : 90000);
     try {
-      if (!auth) throw new Error('Előbb jelentkezz be az e-mail-címeddel.');
+      if (!auth) throw new Error('Please sign in with your email first.');
       const path = mode === 'demo' ? '/agents/chat' : mode === 'llm' ? '/agents/llm-chat' : mode === 'tools' ? '/agents/tool-chat' : '/agents/workflow';
       let response = await agentRequest(path, auth!.access_token, controller.signal);
       if (response.status === 401 && auth) {
@@ -155,7 +155,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
         });
         if (!refreshed.ok) {
           setAuth(null);
-          throw new Error('A munkamenet lejárt. Jelentkezz be újra.');
+          throw new Error('Session expired. Please sign in again.');
         }
         const newTokens = (await refreshed.json()) as AuthResponse;
         setAuth(newTokens);
@@ -173,7 +173,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
       if (mode === 'workflow' && result.plan && result.execution && result.review) {
         setWorkflow(result);
       } else {
-        setReply((result.thread_id ? `Workflow ID: ${result.thread_id}\n\n` : '') + (result.response || 'A válasz üres.'));
+        setReply((result.thread_id ? `Workflow ID: ${result.thread_id}\n\n` : '') + (result.response || 'Empty response.'));
       }
     } catch (reason) {
       setError(controller.signal.aborted ? 'A backend nem válaszolt időben. A Render felébredése vagy az AI workflow túl hosszú futása okozhatja.' : reason instanceof Error ? reason.message : 'Az API-hívás sikertelen.');
@@ -188,26 +188,26 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     <section className="max-w-3xl space-y-5">
       <div>
         <h2 className="text-xl font-semibold">AI Agent Control Center</h2>
-        <p className="mt-1 text-sm text-[#9AA3AE]">Éles API-kapcsolat. A demo mód nem LLM-válasz.</p>
+        <p className="mt-1 text-sm text-[#9AA3AE]">Live API connection. Demo mode is not an LLM response.</p>
       </div>
       <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-5">
-        <h3 className="font-semibold">Bejelentkezés</h3>
+        <h3 className="font-semibold">Sign in</h3>
         {auth ? (
           <div className="flex items-center gap-3">
-            <span className="text-sm text-emerald-300">Bejelentkezve</span>
-            <button type="button" onClick={() => { setAuth(null); setEmail(''); setReply(''); }} className="rounded border border-white/20 px-3 py-2 text-sm">Kilépés a felületről</button>
+            <span className="text-sm text-emerald-300">Signed in</span>
+            <button type="button" onClick={() => { setAuth(null); setEmail(''); setReply(''); }} className="rounded border border-white/20 px-3 py-2 text-sm">Sign out</button>
           </div>
         ) : (
           <div className="space-y-3">
-            <input type="email" aria-label="E-mail" placeholder="E-mail" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#11151C] p-3" />
-            <input type="password" aria-label="Jelszó" placeholder="Jelszó" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#11151C] p-3" />
-            <div className="flex flex-wrap gap-3"><button type="button" disabled={busy || !email.trim() || !password} onClick={signIn} className="rounded-lg bg-cyan-500 px-4 py-2 text-black disabled:opacity-50">Bejelentkezés</button><button type="button" disabled={busy || !email.trim() || password.length < 8} onClick={registerAccount} className="rounded-lg border border-cyan-400/50 px-4 py-2 text-cyan-200 disabled:opacity-50">Új fiók regisztrálása</button></div>{error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
+            <input type="email" aria-label="Email" placeholder="Email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#11151C] p-3" />
+            <input type="password" aria-label="Password" placeholder="Password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#11151C] p-3" />
+            <div className="flex flex-wrap gap-3"><button type="button" disabled={busy || !email.trim() || !password} onClick={signIn} className="rounded-lg bg-cyan-500 px-4 py-2 text-black disabled:opacity-50">Sign in</button><button type="button" disabled={busy || !email.trim() || password.length < 8} onClick={registerAccount} className="rounded-lg border border-cyan-400/50 px-4 py-2 text-cyan-200 disabled:opacity-50">Create account</button></div>{error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
           </div>
         )}
-        <p className="text-xs text-[#9AA3AE]">A tokeneket csak a megnyitott oldal memóriájában tartjuk. Lejárt hozzáférési token esetén egyszer automatikusan frissítünk. A kilépés innen nem vonja vissza a szerveroldali munkamenetet.</p>
+        <p className="text-xs text-[#9AA3AE]">Tokens are held only in the open page's memory. Lejárt hozzáférési token esetén egyszer automatikusan frissítünk. A kilépés innen nem vonja vissza a szerveroldali munkamenetet.</p>
       </div>
       <form onSubmit={submit} className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-5">
-        <label className="block text-sm">Agent mód
+        <label className="block text-sm">Agent mode
           <select value={mode} onChange={e => { setMode(e.target.value as AgentMode); setReply(''); setError(''); }} className="mt-2 w-full rounded-lg border border-white/15 bg-[#11151C] p-3 text-white">
             <option value="demo">Demo agent</option>
             <option value="llm">LLM agent</option>
@@ -215,18 +215,18 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
             <option value="workflow">Planner–Executor–Reviewer workflow</option>
           </select>
         </label>
-        <label className="block text-sm">Üzenet
+        <label className="block text-sm">Message
           <textarea value={message} onChange={e => setMessage(e.target.value)} maxLength={4000} rows={4} placeholder="Írj egy üzenetet az agentnek..." className="mt-2 w-full rounded-lg border border-white/15 bg-[#11151C] p-3 text-white" />
         </label>
-        <button type="submit" disabled={busy || !message.trim() || (mode !== 'demo' && !auth)} className="rounded-lg bg-cyan-500 px-5 py-2 font-medium text-black disabled:opacity-50">{busy ? 'Feldolgozás...' : 'Küldés'}</button>
+        <button type="submit" disabled={busy || !message.trim() || (mode !== 'demo' && !auth)} className="rounded-lg bg-cyan-500 px-5 py-2 font-medium text-black disabled:opacity-50">{busy ? 'Processing...' : 'Send'}</button>
       </form>
       {mode === 'workflow' && <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#9AA3AE]">
-        <span>{threadId ? `Mentett beszélgetés: ${threadId}` : 'Új beszélgetés – az első válasz után mentjük az azonosítót.'}</span>
-        <button type="button" disabled={busy} onClick={newConversation} className="rounded border border-white/20 px-3 py-2 text-sm text-white disabled:opacity-50">Új beszélgetés</button>
+        <span>{threadId ? `Mentett beszélgetés: ${threadId}` : 'New conversation – az első válasz után mentjük az azonosítót.'}</span>
+        <button type="button" disabled={busy} onClick={newConversation} className="rounded border border-white/20 px-3 py-2 text-sm text-white disabled:opacity-50">New conversation</button>
       </div>}
       {workflow && <div className="space-y-3" aria-label="Workflow eredmények">
         <p className="text-xs text-[#9AA3AE]">Workflow ID: {workflow.thread_id}</p>
-        {typeof workflow.duration_ms === 'number' && <p className="text-xs text-emerald-300">Futás sikeres · Időtartam: {(workflow.duration_ms / 1000).toFixed(2)} s</p>}
+        {typeof workflow.duration_ms === 'number' && <p className="text-xs text-emerald-300">Run successful · Időtartam: {(workflow.duration_ms / 1000).toFixed(2)} s</p>}
         {workflow.step_timings_ms && <div className="flex flex-wrap gap-3 text-xs text-cyan-300">{(['planner', 'executor', 'reviewer'] as const).map(step => typeof workflow.step_timings_ms?.[step] === 'number' ? <span key={step}>{step}: {(workflow.step_timings_ms[step] / 1000).toFixed(2)} s</span> : null)}</div>}
         {([['01 · Planner – terv', workflow.plan], ['02 · Executor – végrehajtás', workflow.execution], ['03 · Reviewer – ellenőrzés és végső válasz', workflow.review]] as const).map(([heading, content]) => (
           <article key={heading} className="rounded-xl border border-cyan-500/20 bg-white/5 p-4">
@@ -272,12 +272,12 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
           const slowCount = successful.filter(run => run.duration_ms > slowThresholdMs).length;
           return <div className="space-y-3 rounded-lg border border-white/10 p-3">
             <div className="flex flex-wrap justify-between gap-3 text-xs text-[#9AA3AE]">
-              <span>Hibaarány (utolsó {runs.length} futás): <strong className="text-white">{(failures / runs.length * 100).toFixed(1)}%</strong></span>
-              <span>Átlagos sikeres futás: <strong className="text-white">{average === null ? 'Nincs adat' : `${(average / 1000).toFixed(2)} s`}</strong></span>
-              <span>P95 sikeres futás: <strong className="text-white">{p95 === null ? 'Nincs adat' : `${(p95 / 1000).toFixed(2)} s`}</strong></span>
-              <span className={slowCount ? 'text-amber-300' : 'text-[#9AA3AE]'}>Lassú futások (&gt;15 s): <strong>{slowCount}</strong></span>
+              <span>Error rate (utolsó {runs.length} futás): <strong className="text-white">{(failures / runs.length * 100).toFixed(1)}%</strong></span>
+              <span>Average successful run: <strong className="text-white">{average === null ? 'No data' : `${(average / 1000).toFixed(2)} s`}</strong></span>
+              <span>P95 sikeres futás: <strong className="text-white">{p95 === null ? 'No data' : `${(p95 / 1000).toFixed(2)} s`}</strong></span>
+              <span className={slowCount ? 'text-amber-300' : 'text-[#9AA3AE]'}>Slow runs (&gt;15 s): <strong>{slowCount}</strong></span>
             </div>
-            <h4 className="text-sm font-medium">Legutóbbi {recent.length} futás időtartama</h4>
+            <h4 className="text-sm font-medium">Recent {recent.length} futás időtartama</h4>
             <div role="img" aria-label="Futási idők: zöld sikeres, piros sikertelen, sárga időtúllépés" className="flex h-32 items-end gap-1 border-b border-white/20 pb-1">
               {recent.map(run => <div key={run.id} title={`${new Date(run.created_at).toLocaleString('hu-HU')} · ${run.status} · ${(run.duration_ms / 1000).toFixed(2)} s`} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1 h-full">
                 <span className="text-[9px] text-[#9AA3AE]">{(run.duration_ms / 1000).toFixed(1)}s</span>
@@ -288,16 +288,16 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
           </div>;
         })()}
         {runsError && <p className="text-xs text-amber-300">{runsError}</p>}
-        {!runsError && runs.length === 0 && <p className="text-xs text-[#9AA3AE]">Még nincs mentett futás.</p>}
+        {!runsError && runs.length === 0 && <p className="text-xs text-[#9AA3AE]">No saved runs yet.</p>}
         {runs.filter(run => runFilter === 'all' || run.status === runFilter).map(run => <div key={run.id} className="rounded border border-white/10 p-3 text-xs">
-          <div className="flex justify-between gap-3"><span className="font-medium break-words">{run.task}</span><span className={`shrink-0 ${run.status === "success" ? "text-emerald-300" : run.status === "timeout" ? "text-amber-300" : "text-red-300"}`}>{run.status === "success" ? "Sikeres" : run.status === "timeout" ? "Időtúllépés" : "Sikertelen"}</span></div>
+          <div className="flex justify-between gap-3"><span className="font-medium break-words">{run.task}</span><span className={`shrink-0 ${run.status === "success" ? "text-emerald-300" : run.status === "timeout" ? "text-amber-300" : "text-red-300"}`}>{run.status === "success" ? "Success" : run.status === "timeout" ? "Időtúllépés" : "Failed"}</span></div>
           <p className="mt-1 text-[#9AA3AE]">{new Date(run.created_at).toLocaleString('hu-HU')} · {(run.duration_ms / 1000).toFixed(2)} s</p>
           <details className="mt-2 rounded border border-white/10 p-2">
-            <summary className="cursor-pointer text-cyan-300">Futás részletei</summary>
+            <summary className="cursor-pointer text-cyan-300">Run details</summary>
             <div className="mt-2 space-y-2 text-[#9AA3AE]">
               <p className="break-all">Futásazonosító: {run.id}</p>
               <p className="break-all">Beszélgetésazonosító: {run.thread_id}</p>
-              <p>Állapot: {run.status === 'success' ? 'Sikeres' : run.status === 'timeout' ? 'Időtúllépés' : 'Sikertelen'}</p>
+              <p>Állapot: {run.status === 'success' ? 'Success' : run.status === 'timeout' ? 'Időtúllépés' : 'Failed'}</p>
               <p>Teljes idő: {run.duration_ms.toFixed(2)} ms</p>
               {(['planner', 'executor', 'reviewer'] as const).map(step => (
                 <p key={step}>{step === 'planner' ? 'Planner' : step === 'executor' ? 'Executor' : 'Reviewer'}: {typeof run.step_timings?.[step] === 'number' ? `${run.step_timings[step].toFixed(2)} ms` : 'Nincs mérési adat'}</p>
@@ -306,7 +306,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
           </details>
         </div>)}
       </section>}
-      {reply && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><h3 className="mb-2 font-semibold">Agent válasza</h3><p className="whitespace-pre-wrap break-words text-sm">{reply}</p></div>}
+      {reply && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><h3 className="mb-2 font-semibold">Agent responsea</h3><p className="whitespace-pre-wrap break-words text-sm">{reply}</p></div>}
       {error && <div role="alert" className="rounded-xl border border-red-500/30 p-4 text-sm text-red-300">{error}</div>}
       <p className="text-xs text-[#9AA3AE]">Az LLM és tool agent működéséhez a backend OpenAI API-kulcsa is szükséges.</p>
     </section>
