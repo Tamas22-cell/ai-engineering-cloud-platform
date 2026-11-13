@@ -143,7 +143,7 @@ export default function HomePage() {
             <DevOpsView />
           )}
           {active === 'infra' && (
-            <InfrastructureView />
+            <InfrastructureView auth={auth} />
           )}
           {active === 'observability' && (
             <ObservabilityView telemetry={ragTelemetry} auth={auth} />
@@ -686,11 +686,12 @@ function DevOpsView() {
   );
 }
 
-function InfrastructureView() {
+function InfrastructureView({ auth }: { auth: SharedAuth | null }) {
   const [api, setApi] = useState<'checking' | 'online' | 'unreachable'>('checking');
   const [db, setDb] = useState('Checking...');
   const [redis, setRedis] = useState('Checking...');
   const [langfuse, setLangfuse] = useState('Checking...');
+  const [langfuseProbeBusy, setLangfuseProbeBusy] = useState(false);
   const [checkedAt, setCheckedAt] = useState('');
   const [refresh, setRefresh] = useState(0);
 
@@ -735,6 +736,30 @@ function InfrastructureView() {
     return () => { cancelled = true; };
   }, [refresh]);
 
+  async function verifyInfrastructureLangfuse() {
+    if (!auth || langfuseProbeBusy) return;
+    setLangfuseProbeBusy(true);
+    setLangfuse('Checking trace delivery...');
+    try {
+      const response = await fetch('/backend/health/integrations/langfuse-probe', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${auth.access_token}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15000),
+      });
+      const result = await response.json() as { status?: string; checked_at?: string; detail?: string };
+      if (!response.ok) {
+        setLangfuse(response.status === 401 ? 'Session expired · sign in again' : response.status === 403 ? 'Admin or developer role required' : result.detail ?? `Verification failed (HTTP ${response.status})`);
+        return;
+      }
+      setLangfuse(result.status === 'delivered' ? `Verified · ${result.checked_at ? new Date(result.checked_at).toLocaleTimeString('hu-HU') : 'just now'}` : 'Trace delivery not confirmed');
+    } catch {
+      setLangfuse('Verification request failed');
+    } finally {
+      setLangfuseProbeBusy(false);
+    }
+  }
+
   return (
     <section className="max-w-4xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -746,7 +771,7 @@ function InfrastructureView() {
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Render / FastAPI</h3><p className="mt-2 text-xl font-semibold" role="status">{api === 'checking' ? 'Checking...' : api === 'online' ? 'Online' : 'Unreachable'}</p><p className="mt-2 text-xs text-slate-400">/backend/health/live</p></div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">PostgreSQL</h3><p className="mt-2 text-xl font-semibold" role="status">{db}</p><p className="mt-2 text-xs text-slate-400">/backend/health/ready</p></div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Redis</h3><p className="mt-2 text-xl font-semibold" role="status">{redis}</p><p className="mt-2 text-xs text-slate-400">Valós PING a backendből; a kapcsolati adatok nem kerülnek a böngészőbe.</p></div>
-        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Langfuse exporter</h3><p className="mt-2 text-xl font-semibold" role="status">{langfuse}</p><p className="mt-2 text-xs text-slate-400">A kulcsok megléte konfigurációt jelez, nem bizonyítja a trace-ek fogadását.</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-5"><h3 className="text-sm text-slate-400">Langfuse exporter</h3><p className="mt-2 text-xl font-semibold" role="status">{langfuse}</p><p className="mt-2 text-xs text-slate-400">A kulcsok megléte önmagában nem igazolja a trace-ek fogadását.</p><button type="button" onClick={() => void verifyInfrastructureLangfuse()} disabled={!auth || langfuseProbeBusy} className="mt-3 rounded border border-cyan-400/40 px-3 py-2 text-sm text-cyan-200 disabled:opacity-50">{langfuseProbeBusy ? 'Ellenőrzés…' : 'Langfuse-fogadás ellenőrzése'}</button>{!auth && <p className="mt-2 text-xs text-amber-200">Jelentkezz be admin vagy developer fiókkal.</p>}</div>
       </div>
       <p className="text-xs text-slate-400">{checkedAt ? `Utolsó ellenőrzés: ${checkedAt}` : 'Ellenőrzés folyamatban'}. A hálózati hiba önmagában nem bizonyítja a leállást.</p>
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 space-y-3">
