@@ -128,7 +128,7 @@ export default function HomePage() {
         </header>
 
         <main className="flex-1 p-4 md:p-6 overflow-auto">
-          {active === 'overview' && <OverviewView onNavigate={setActive} />}
+          {active === 'overview' && <OverviewView onNavigate={setActive} auth={auth} />}
           {active === 'agents' && authRestored && <AgentsView auth={auth} setAuth={setAuth} />}
           {active === 'rag' && authRestored && (
             <RagView onTelemetry={setRagTelemetry} auth={auth} setAuth={setAuth} />
@@ -154,14 +154,14 @@ export default function HomePage() {
           {active === 'security' && (
             <SecurityView auth={auth} setAuth={setAuth} />
           )}
-          {active === 'skills' && <SkillsView onNavigate={setActive} />}
+          {active === 'skills' && <SkillsView onNavigate={setActive} auth={auth} />}
         </main>
       </div>
     </div>
   );
 }
 
-function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
+function OverviewView({ onNavigate, auth }: { onNavigate: (page: string) => void; auth: SharedAuth | null }) {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
   const [databaseStatus, setDatabaseStatus] = useState('Unknown');
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationHealth | null>(null);
@@ -209,12 +209,12 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     {
       title: 'AI Agent Orchestration',
       detail: 'Authenticated chat modes and saved workflow runs; availability is shown in Agents.',
-      state: 'Available in Agents · sign-in required',
+      state: auth ? 'Available in Agents · signed in' : 'Available in Agents · sign-in required',
     },
     {
       title: 'RAG & Knowledge Retrieval',
       detail: 'PDF upload, indexing and source-linked retrieval; account required.',
-      state: 'Available in RAG · sign-in required',
+      state: auth ? 'Available in RAG · signed in' : 'Available in RAG · sign-in required',
     },
     {
       title: 'MLOps',
@@ -244,7 +244,7 @@ function OverviewView({ onNavigate }: { onNavigate: (page: string) => void }) {
     {
       title: 'FinOps',
       detail: 'Per-user measured RAG token usage and optional cost estimate; provider cloud billing is not connected.',
-      state: 'Available in FinOps · sign-in required',
+      state: auth ? 'Available in FinOps · signed in' : 'Available in FinOps · sign-in required',
     },
   ];
 
@@ -427,7 +427,7 @@ function Placeholder({
   );
 }
 
-function SkillsView({ onNavigate }: { onNavigate: (page: string) => void }) {
+function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; auth: SharedAuth | null }) {
   const [cloudStatus, setCloudStatus] = useState('Ellenőrzés...');
 
   useEffect(() => {
@@ -464,8 +464,8 @@ function SkillsView({ onNavigate }: { onNavigate: (page: string) => void }) {
     { name: 'Cloud Infrastructure', detail: 'Vercel frontend, Render API és PostgreSQL állapotellenőrzés.', status: cloudStatus, page: 'infra' },
     { name: 'Docker / Kubernetes', detail: 'Docker Compose validált; Kubernetes API 1/1 Running, PostgreSQL és Redis kapcsolat igazolt.', status: 'Kubernetes API élő', page: 'devops' },
     { name: 'CI/CD', detail: 'GitHub Actions legutóbbi futásai közvetlenül megjelennek.', status: 'Élő futások', page: 'devops' },
-    { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: 'Bejelentkezés kell', page: 'agents' },
-    { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: 'Bejelentkezés kell', page: 'rag' },
+    { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'agents' },
+    { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'rag' },
     { name: 'MLOps', detail: 'Tanítás, artifact-verziók, aktív predikció és ellenőrzött visszaállítás.', status: 'Admin aktiválás', page: 'mlops' },
     { name: 'Security & Access', detail: 'JWT és RBAC tesztek sikeresek; mély biztonsági audit még hátravan.', status: 'JWT/RBAC tesztelve', page: 'security' },
   ];
@@ -484,7 +484,7 @@ function SkillsView({ onNavigate }: { onNavigate: (page: string) => void }) {
               <div className="mt-1 text-xs text-[#9AA3AE]">{skill.detail}</div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek', 'Kubernetes API élő', 'JWT/RBAC tesztelve'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
+              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek', 'Kubernetes API élő', 'JWT/RBAC tesztelve', 'Bejelentkezve'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
               <button type="button" onClick={() => onNavigate(skill.page)} className="rounded border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/5">Megnyitás</button>
             </div>
           </div>
