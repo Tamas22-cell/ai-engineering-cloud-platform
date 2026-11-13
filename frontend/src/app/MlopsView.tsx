@@ -294,24 +294,24 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
     <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
       <p className="text-sm text-[#9AA3AE]">{auth ? 'Shared session: signed in.' : 'Sign in on Agents or RAG. No need to copy tokens.'}</p>
       <div className="flex flex-wrap items-center gap-3">
-        <button onClick={checkRole} disabled={!auth || checkingUser} className="rounded-lg border border-cyan-400/50 px-4 py-2 text-sm text-cyan-200 disabled:opacity-50">{checkingUser ? 'Verification...' : 'Saját jogosultság verificatione'}</button>
+        <button onClick={checkRole} disabled={!auth || checkingUser} className="rounded-lg border border-cyan-400/50 px-4 py-2 text-sm text-cyan-200 disabled:opacity-50">{checkingUser ? 'Verification...' : 'Verify my permissions'}</button>
         {currentUser && <p className="text-sm text-slate-200">Account: {currentUser.email} · Role: <strong>{currentUser.role}</strong> · {currentUser.is_active ? 'Active' : 'Inactive'}</p>}
       </div>
       {auth && <button type="button" onClick={() => void logout()} className="mr-2 rounded-lg border border-amber-400/50 px-4 py-2 text-sm text-amber-200">Sign out</button>}
-      <button onClick={loadProfile} disabled={!auth || profileLoading} className="mr-2 rounded-lg border border-cyan-500/50 px-4 py-2 text-cyan-200 disabled:opacity-50">{profileLoading ? 'Verification...' : 'Fiókom és jogosultságom'}</button>
+      <button onClick={loadProfile} disabled={!auth || profileLoading} className="mr-2 rounded-lg border border-cyan-500/50 px-4 py-2 text-cyan-200 disabled:opacity-50">{profileLoading ? 'Verification...' : 'My account and permissions'}</button>
       {profile && <p className="text-sm text-slate-200">Signed-in account: <strong>{profile.email}</strong> · Role: <strong>{profile.role}</strong></p>}
       <button onClick={loadModels} disabled={loading} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{loading ? 'Loading...' : 'Load models'}</button>
     </div>
     <form onSubmit={createModel} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
       <h3 className="font-semibold">Register new model</h3>
-      {currentUser && !['admin', 'developer'].includes(currentUser.role) && <p role="status" className="text-sm text-amber-300">A {currentUser.role} role has read-only access. Regisztrációhoz admin vagy developer fiók szükséges.</p>}
+      {currentUser && !['admin', 'developer'].includes(currentUser.role) && <p role="status" className="text-sm text-amber-300">The {currentUser.role} role has read-only access. Registration requires an admin or developer account.</p>}
       <p className="text-xs text-slate-400">Live Model Registry API · admin/developer role required.</p>
       <div className="flex flex-wrap gap-2">
         <input aria-label="Model neve" required maxLength={120} value={newName} onChange={e => setNewName(e.target.value)} placeholder="Model neve" className="min-w-40 flex-1 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
         <input aria-label="Model version" required maxLength={80} value={newVersion} onChange={e => setNewVersion(e.target.value)} placeholder="Version" className="w-28 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
         <input aria-label="Framework" required maxLength={60} value={newFramework} onChange={e => setNewFramework(e.target.value)} placeholder="Framework" className="w-32 rounded border border-white/15 bg-[#11151C] p-2 text-sm" />
       </div>
-      <button type="submit" disabled={!auth || creating || !currentUser || !['admin', 'developer'].includes(currentUser.role)} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{creating ? 'Regisztrálás...' : 'Model regisztrálása'}</button>
+      <button type="submit" disabled={!auth || creating || !currentUser || !['admin', 'developer'].includes(currentUser.role)} className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-black disabled:opacity-50">{creating ? 'Registering...' : 'Register model'}</button>
     </form>
     {error && <p role="alert" className="text-red-300">{error}</p>}
     <div className="overflow-x-auto rounded-xl border border-white/10">
@@ -319,17 +319,17 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
         <thead className="bg-white/5"><tr><th className="p-3">Model</th><th className="p-3">Version</th><th className="p-3">Framework</th><th className="p-3">Stage</th><th className="p-3">Metrics</th></tr></thead>
         <tbody>{models.map(m => <tr key={m.id} className="border-t border-white/10"><td className="p-3">{m.name}</td><td className="p-3">{m.version}</td><td className="p-3">{m.framework}</td><td className="p-3">{m.stage}</td><td className="p-3"><button className="underline text-cyan-300" onClick={() => loadRuns(m.id)}>Runs</button><div className="mt-2 flex flex-wrap items-center gap-2">
         <input aria-label={`Metric neve: ${m.name}`} value={metricNames[m.id] ?? (m.name === 'Synthetic Regression Baseline' ? 'mae' : 'accuracy')} onChange={e => { setMetricNames(p => ({ ...p, [m.id]: e.target.value })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} placeholder="Metric (pl. accuracy)" className="w-32 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
-        <input aria-label={`Threshold: ${m.name}`} type="number" step="any" value={thresholds[m.id] ?? ''} onChange={e => { setThresholds(p => ({ ...p, [m.id]: e.target.value })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} placeholder="Küszöb (optional)" className="w-28 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
+        <input aria-label={`Threshold: ${m.name}`} type="number" step="any" value={thresholds[m.id] ?? ''} onChange={e => { setThresholds(p => ({ ...p, [m.id]: e.target.value })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} placeholder="Threshold (optional)" className="w-28 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
         <select aria-label={`Alert direction: ${m.name}`} value={directions[m.id] ?? 'below'} onChange={e => { setDirections(p => ({ ...p, [m.id]: e.target.value as 'below' | 'above' })); setSummaries(p => { const next = { ...p }; delete next[m.id]; return next; }); }} className="rounded border border-white/15 bg-[#11151C] p-1 text-xs">
           <option value="below">Alatta</option><option value="above">Felett</option>
         </select>
         <button className="underline text-cyan-300" onClick={() => loadSummary(m.id)}>Load metric</button>
         <input aria-label={`New metric value: ${m.name}`} type="number" step="any" value={runValues[m.id] ?? ''} onChange={e => setRunValues(p => ({ ...p, [m.id]: e.target.value }))} placeholder="New value" className="w-24 rounded border border-white/15 bg-[#11151C] p-1 text-xs" />
-        <button disabled={!auth || recordingModel === m.id || !currentUser || !['admin', 'developer'].includes(currentUser.role)} className="rounded bg-cyan-500 px-2 py-1 text-xs text-black disabled:opacity-50" onClick={() => recordMetric(m.id)}>{recordingModel === m.id ? "Save..." : "Measurement rögzítése"}</button>
+        <button disabled={!auth || recordingModel === m.id || !currentUser || !['admin', 'developer'].includes(currentUser.role)} className="rounded bg-cyan-500 px-2 py-1 text-xs text-black disabled:opacity-50" onClick={() => recordMetric(m.id)}>{recordingModel === m.id ? "Save..." : "Record measurement"}</button>
       </div>
       {summaries[m.id] && <div className="mt-2 text-xs">
         <p>{summaries[m.id].metric_name}: {summaries[m.id].latest.toFixed(3)} · Average: {summaries[m.id].average.toFixed(3)} · Change: {summaries[m.id].delta.toFixed(3)}</p>
-        <p className={summaries[m.id].alert ? 'text-red-300' : 'text-emerald-300'}>{summaries[m.id].threshold === null ? 'No alert threshold' : summaries[m.id].alert ? 'Warning: threshold exceeded' : 'Nincs riasztás'}</p>
+        <p className={summaries[m.id].alert ? 'text-red-300' : 'text-emerald-300'}>{summaries[m.id].threshold === null ? 'No alert threshold' : summaries[m.id].alert ? 'Warning: threshold exceeded' : 'No alerts'}</p>
       </div>}
       {runs[m.id] && (() => {
         const selectedMetric = (metricNames[m.id] ?? (m.name === 'Synthetic Regression Baseline' ? 'mae' : 'accuracy')).trim();
@@ -350,13 +350,13 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
           </div>
           {values.length ? <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {([['Measurements', String(values.length)], ['Átlag', average.toFixed(4)], ['Minimum', min.toFixed(4)], ['Maximum', max.toFixed(4)]] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-white/10 bg-white/5 p-2"><p className="text-xs text-slate-400">{label}</p><p className="mt-1 text-base font-semibold tabular-nums text-slate-100">{value}</p></div>)}
+              {([['Measurements', String(values.length)], ['Average', average.toFixed(4)], ['Minimum', min.toFixed(4)], ['Maximum', max.toFixed(4)]] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-white/10 bg-white/5 p-2"><p className="text-xs text-slate-400">{label}</p><p className="mt-1 text-base font-semibold tabular-nums text-slate-100">{value}</p></div>)}
             </div>
             <div role="img" aria-label={`${selectedMetric} trend: ${values.map(v => v.toFixed(3)).join(', ')}`} className="flex h-36 items-end gap-1 rounded-lg border border-white/10 bg-black/20 p-3">
               {values.map((value, index) => <div key={index} title={`Measurement ${index + 1}: ${value.toFixed(4)}`} className="min-w-1 flex-1 rounded-t bg-cyan-400/80" style={{ height: `${Math.max(5, ((value - min) / span) * 85 + 15)}%` }} />)}
             </div>
             <p className="text-xs text-slate-400">{selectedMetric.toUpperCase()} · {values.length} measurements · chart based on API run data.</p>
-          </> : <p className="text-xs text-slate-400">Ehhez a metrikához még nincs mérés.</p>}
+          </> : <p className="text-xs text-slate-400">No measurements for this metric yet.</p>}
           <details className="rounded-lg border border-white/10 p-2">
             <summary className="cursor-pointer text-xs font-medium text-cyan-200">Raw measurement history ({runs[m.id].length})</summary>
             <div className="mt-2 max-h-52 space-y-1 overflow-y-auto text-xs text-slate-300">
@@ -368,7 +368,7 @@ export default function MlopsView({ auth, setAuth }: { auth: AuthResponse | null
       </td></tr>)}</tbody>
       </table>
     </div>
-    {!modelsLoaded && !loading && <p className="text-sm text-[#9AA3AE]">A nyilvános modeldata betöltése még nem sikerült. Kattints a Load models gombra.</p>}
+    {!modelsLoaded && !loading && <p className="text-sm text-[#9AA3AE]">Public model data could not be loaded. Click Load models.</p>}
     {modelsLoaded && !models.length && !loading && <p className="text-sm text-[#9AA3AE]">Model Registry API responded successfully, but no models are registered.</p>}
   </section>;
 }
