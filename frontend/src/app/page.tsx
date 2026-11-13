@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -428,9 +428,40 @@ function Placeholder({
 }
 
 function SkillsView({ onNavigate }: { onNavigate: (page: string) => void }) {
+  const [cloudStatus, setCloudStatus] = useState('Ellenőrzés...');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkCloud() {
+      try {
+        const [live, ready, integrations] = await Promise.all([
+          fetch('/backend/health/live', { cache: 'no-store' }),
+          fetch('/backend/health/ready', { cache: 'no-store' }),
+          fetch('/backend/health/integrations', { cache: 'no-store' }),
+        ]);
+
+        if (!live.ok || !ready.ok || !integrations.ok) {
+          throw new Error('Health check failed');
+        }
+
+        const data = await integrations.json() as IntegrationHealth;
+        if (!cancelled) {
+          setCloudStatus(data.redis === 'connected' && data.langfuse === 'configured'
+            ? 'Alapszolgáltatások élnek'
+            : 'Részben működik');
+        }
+      } catch {
+        if (!cancelled) setCloudStatus('Ellenőrzés sikertelen');
+      }
+    }
+
+    void checkCloud();
+    return () => { cancelled = true; };
+  }, []);
   const skills = [
     { name: 'Python Backend', detail: 'FastAPI szolgáltatás, hitelesítés és valós health ellenőrzés.', status: 'API állapot élő', page: 'overview' },
-    { name: 'Cloud Infrastructure', detail: 'Vercel frontend, Render API és PostgreSQL állapotellenőrzés.', status: 'Részben összekötve', page: 'infra' },
+    { name: 'Cloud Infrastructure', detail: 'Vercel frontend, Render API és PostgreSQL állapotellenőrzés.', status: cloudStatus, page: 'infra' },
     { name: 'Docker / Kubernetes', detail: 'Docker konfiguráció elérhető; Kubernetes állapot nincs igazolva.', status: 'Részben kész', page: 'devops' },
     { name: 'CI/CD', detail: 'GitHub Actions legutóbbi futásai közvetlenül megjelennek.', status: 'Élő futások', page: 'devops' },
     { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: 'Bejelentkezés kell', page: 'agents' },
@@ -453,7 +484,7 @@ function SkillsView({ onNavigate }: { onNavigate: (page: string) => void }) {
               <div className="mt-1 text-xs text-[#9AA3AE]">{skill.detail}</div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || skill.status === 'API állapot élő' ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
+              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
               <button type="button" onClick={() => onNavigate(skill.page)} className="rounded border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/5">Megnyitás</button>
             </div>
           </div>
@@ -916,3 +947,5 @@ function SecurityView({ auth, setAuth }: { auth: SharedAuth | null; setAuth: (va
     </section>
   );
 }
+
+
