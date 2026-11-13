@@ -42,22 +42,47 @@ export default function HomePage() {
   const [authRestored, setAuthRestored] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = window.sessionStorage.getItem('ai-engineering-auth');
-      if (saved) {
+    let cancelled = false;
+    async function restoreSession() {
+      try {
+        const saved = window.sessionStorage.getItem('ai-engineering-auth');
+        if (!saved) return;
         const parsed: unknown = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && 'access_token' in parsed && 'refresh_token' in parsed &&
-            typeof parsed.access_token === 'string' && typeof parsed.refresh_token === 'string') {
-          setAuth({ access_token: parsed.access_token, refresh_token: parsed.refresh_token });
-        } else {
+        if (!parsed || typeof parsed !== 'object' ||
+            !('access_token' in parsed) || !('refresh_token' in parsed) ||
+            typeof parsed.access_token !== 'string' ||
+            typeof parsed.refresh_token !== 'string') {
           window.sessionStorage.removeItem('ai-engineering-auth');
+          return;
         }
+        const tokens: SharedAuth = { access_token: parsed.access_token, refresh_token: parsed.refresh_token };
+        // Refresh before mounting protected modules, avoiding stale-token sign-in prompts.
+        try {
+          const response = await fetch(`${API_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: tokens.refresh_token }),
+            signal: AbortSignal.timeout(12000),
+          });
+          if (response.ok) {
+            const refreshed = (await response.json()) as SharedAuth;
+            if (!cancelled) setAuth(refreshed);
+          } else if (response.status === 400 || response.status === 401 || response.status === 403) {
+            window.sessionStorage.removeItem('ai-engineering-auth');
+          } else if (!cancelled) {
+            setAuth(tokens); // Temporary server error: retain the existing session.
+          }
+        } catch {
+          if (!cancelled) setAuth(tokens); // Network outage must not silently log out.
+        }
+      } catch {
+        window.sessionStorage.removeItem('ai-engineering-auth');
+      } finally {
+        if (!cancelled) setAuthRestored(true);
       }
-    } catch {
-      window.sessionStorage.removeItem('ai-engineering-auth');
-    } finally {
-      setAuthRestored(true);
     }
+    void restoreSession();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
