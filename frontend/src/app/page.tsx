@@ -431,6 +431,7 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
   const [cloudStatus, setCloudStatus] = useState('Ellenőrzés...');
   const [kubernetesStatus, setKubernetesStatus] = useState('CI ellenőrzés...');
   const [securityStatus, setSecurityStatus] = useState('JWT ellenőrzés...');
+  const [securityAuditPassed, setSecurityAuditPassed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -446,7 +447,11 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
         const jobData = await jobs.json() as { jobs?: Array<{ name: string; conclusion: string | null }> };
         const required = ['docker-compose-validation', 'kubernetes-validation'];
         const passed = required.every(name => jobData.jobs?.some(job => job.name === name && job.conclusion === 'success'));
-        if (!cancelled) setKubernetesStatus(passed ? 'CI validált · cluster nem igazolt' : 'CI validáció hiányzik');
+        const audited = jobData.jobs?.some(job => job.name === 'security-audit' && job.conclusion === 'success') ?? false;
+        if (!cancelled) {
+          setKubernetesStatus(passed ? 'Docker/K8s CI sikeres' : 'CI validáció hiányzik');
+          setSecurityAuditPassed(audited);
+        }
       } catch {
         if (!cancelled) setKubernetesStatus('CI állapot nem elérhető');
       }
@@ -463,7 +468,7 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
       setSecurityStatus('JWT ellenőrzés...');
       try {
         const response = await fetch('/backend/auth/me', { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store', signal: AbortSignal.timeout(12000) });
-        if (!cancelled) setSecurityStatus(response.ok ? 'JWT ellenőrizve · audit hátra' : 'JWT ellenőrzés sikertelen');
+        if (!cancelled) setSecurityStatus(response.ok ? 'JWT ellenőrizve' : 'JWT ellenőrzés sikertelen');
       } catch {
         if (!cancelled) setSecurityStatus('JWT ellenőrzés nem elérhető');
       }
@@ -504,12 +509,12 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
   const skills = [
     { name: 'Python Backend', detail: 'FastAPI szolgáltatás, hitelesítés és valós health ellenőrzés.', status: 'API állapot élő', page: 'overview' },
     { name: 'Cloud Infrastructure', detail: 'Vercel frontend, Render API és PostgreSQL állapotellenőrzés.', status: cloudStatus, page: 'infra' },
-    { name: 'Docker / Kubernetes', detail: 'Docker Compose és Kubernetes manifestek CI-validációja; élő cluster nem igazolt.', status: kubernetesStatus, page: 'devops' },
+    { name: 'Docker / Kubernetes', detail: 'Docker Compose és Kubernetes manifestek CI-validációja sikeres; élő cluster telepítése nincs igazolva.', status: kubernetesStatus, page: 'devops' },
     { name: 'CI/CD', detail: 'GitHub Actions legutóbbi futásai közvetlenül megjelennek.', status: 'Élő futások', page: 'devops' },
     { name: 'AI Agent Development', detail: 'Agent chat és mentett workflow előzmények.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'agents' },
     { name: 'RAG Engineering', detail: 'PDF feltöltés, indexelés, kérdezés és forráshivatkozás.', status: auth ? 'Bejelentkezve' : 'Bejelentkezés kell', page: 'rag' },
     { name: 'MLOps', detail: 'Tanítás, artifact-verziók, aktív predikció és ellenőrzött visszaállítás.', status: 'Admin aktiválás', page: 'mlops' },
-    { name: 'Security & Access', detail: 'JWT hitelesítés ellenőrzése a backend /auth/me végpontján; mély audit külön feladat.', status: securityStatus, page: 'security' },
+    { name: 'Security & Access', detail: 'JWT ellenőrzés és GitHub CI függőségaudit; penetrációs teszt külön feladat.', status: securityAuditPassed && securityStatus === 'JWT ellenőrizve' ? 'JWT + függőségaudit sikeres' : securityStatus, page: 'security' },
   ];
 
   return (
@@ -526,7 +531,7 @@ function SkillsView({ onNavigate, auth }: { onNavigate: (page: string) => void; 
               <div className="mt-1 text-xs text-[#9AA3AE]">{skill.detail}</div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek', 'Bejelentkezve'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
+              <span className={`text-xs px-2 py-1 rounded ${skill.status === 'Élő futások' || ['API állapot élő', 'Élő futások', 'Alapszolgáltatások élnek', 'Bejelentkezve', 'Docker/K8s CI sikeres', 'JWT + függőségaudit sikeres'].includes(skill.status) ? 'bg-emerald-500/15 text-emerald-300' : skill.status === 'Bejelentkezés kell' || skill.status === 'Admin aktiválás' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-300'}`}>{skill.status}</span>
               <button type="button" onClick={() => onNavigate(skill.page)} className="rounded border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/5">Megnyitás</button>
             </div>
           </div>
