@@ -57,7 +57,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       signal: AbortSignal.timeout(15000),
     }).then(async response => {
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.detail || `Render invoicedata: HTTP ${response.status}`);
+      if (!response.ok) throw new Error(data.detail || `Render invoice data: HTTP ${response.status}`);
       return data as RenderBillingEntry[];
     }).then(data => { if (active) setRenderEntries(data); })
       .catch(err => { if (active) setRenderEntryError(err instanceof Error ? err.message : 'Render invoice data unavailable.'); });
@@ -96,16 +96,16 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
       <div className="grid gap-3 md:grid-cols-3">
         <CoverageCard title="Measured usage" status="Active" detail="OpenAI tokens for single- and multi-agent RAG responses" tone="green" />
         <CoverageCard title="Token costs" status={finopsStatus?.pricing_configured ? "Pricing active" : finopsStatus ? "Pricing setup required" : "Loading status"} detail="gpt-4.1-mini · based on standard OpenAI token pricing" tone={finopsStatus?.pricing_configured ? "green" : "amber"} />
-        <CoverageCard title="Render invoice" status="Invoices in Render" detail="Manual entry is optional. No action is needed for a $0 invoice." tone="amber" />
+        <CoverageCard title="Render invoices" status={finopsStatus?.render_billing_connected ? "Billing connected" : "Managed in Render"} detail={finopsStatus?.render_billing_connected ? "Render billing integration is connected." : "Official invoices are available in Render. Manual records are optional."} tone="green" />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-slate-300"><span>Official invoices and current costs are available in Render.</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg bg-amber-300 px-4 py-2 font-semibold text-slate-950">View Render invoices (new tab)</a></div>
-      {auth && <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.03] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300"><span>Official invoices and current costs are available in Render.</span><a href="https://dashboard.render.com" target="_blank" rel="noreferrer" className="rounded-lg border border-white/15 bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/15">View Render invoices (new tab)</a></div>
+      {auth && <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
         <div className="mb-3">
           <h3 className="font-semibold">Recorded Render invoices</h3>
           <p className="mt-1 text-xs text-slate-400">Only manually saved copies are listed. You can skip $0 invoices.</p>
         </div>
         <details>
-          <summary className="mb-3 cursor-pointer text-sm font-medium text-amber-200">Add invoice manually (optional)</summary>
+          <summary className="mb-3 cursor-pointer text-sm font-medium text-slate-200">Add invoice manually (optional)</summary>
         <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" onSubmit={async event => {
           event.preventDefault(); setRenderEntryLoading(true); setRenderEntryError('');
           try {
@@ -116,7 +116,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
               signal: AbortSignal.timeout(20000),
             });
             const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.detail || `Render invoice savinge: HTTP ${response.status}`);
+            if (!response.ok) throw new Error(data.detail || `Saving Render invoice: HTTP ${response.status}`);
             setRenderEntries(current => [data as RenderBillingEntry, ...current]);
             setRenderAmount(''); setRenderInvoiceNumber(''); setRenderNote('');
           } catch (err) { setRenderEntryError(err instanceof Error ? err.message : 'Could not save the Render invoice.'); }
@@ -126,7 +126,7 @@ export default function FinOpsView({ auth, onNavigate }: { auth: Auth | null; on
           <label className="text-xs text-slate-300">Amount<input required type="number" min="0" step="0.01" value={renderAmount} onChange={event => setRenderAmount(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
           <label className="text-xs text-slate-300">Currency<select value={renderCurrency} onChange={event => setRenderCurrency(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white"><option>USD</option><option>EUR</option><option>HUF</option></select></label>
           <label className="text-xs text-slate-300">Invoice number (optional)<input value={renderInvoiceNumber} onChange={event => setRenderInvoiceNumber(event.target.value)} maxLength={100} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
-          <div className="flex items-end"><button disabled={renderEntryLoading} className="w-full rounded-lg bg-amber-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{renderEntryLoading ? 'Save…' : 'Render invoice savinge'}</button></div>
+          <div className="flex items-end"><button disabled={renderEntryLoading} className="w-full rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{renderEntryLoading ? 'Save…' : 'Save invoice'}</button></div>
           <label className="text-xs text-slate-300 sm:col-span-2 lg:col-span-5">Note (optional)<input value={renderNote} onChange={event => setRenderNote(event.target.value)} maxLength={500} className="mt-1 block w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white" /></label>
         </form>
         </details>
