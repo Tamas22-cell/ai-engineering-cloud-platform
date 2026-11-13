@@ -92,6 +92,35 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
     }
   }
 
+  async function registerAccount() {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const registration = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      if (!registration.ok) {
+        const body = await registration.json().catch(() => null);
+        throw new Error(typeof body?.detail === 'string' ? body.detail : `Regisztráció sikertelen (HTTP ${registration.status})`);
+      }
+      const login = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      if (!login.ok) throw new Error('Fiók létrehozva. Jelentkezz be a megadott adatokkal.');
+      setAuth((await login.json()) as AuthResponse);
+      setPassword('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Regisztráció sikertelen.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function agentRequest(path: string, accessToken: string, signal: AbortSignal): Promise<Response> {
     return fetch(`${API_URL}${path}`, {
       method: 'POST',
@@ -172,7 +201,7 @@ export default function AgentsView({ auth, setAuth }: { auth: AuthResponse | nul
           <div className="space-y-3">
             <input type="email" aria-label="E-mail" placeholder="E-mail" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#11151C] p-3" />
             <input type="password" aria-label="Jelszó" placeholder="Jelszó" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#11151C] p-3" />
-            <button type="button" disabled={busy || !email.trim() || !password} onClick={signIn} className="rounded-lg bg-cyan-500 px-4 py-2 text-black disabled:opacity-50">Bejelentkezés</button>
+            <div className="flex flex-wrap gap-3"><button type="button" disabled={busy || !email.trim() || !password} onClick={signIn} className="rounded-lg bg-cyan-500 px-4 py-2 text-black disabled:opacity-50">Bejelentkezés</button><button type="button" disabled={busy || !email.trim() || password.length < 8} onClick={registerAccount} className="rounded-lg border border-cyan-400/50 px-4 py-2 text-cyan-200 disabled:opacity-50">Új fiók regisztrálása</button></div>{error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
           </div>
         )}
         <p className="text-xs text-[#9AA3AE]">A tokeneket csak a megnyitott oldal memóriájában tartjuk. Lejárt hozzáférési token esetén egyszer automatikusan frissítünk. A kilépés innen nem vonja vissza a szerveroldali munkamenetet.</p>
