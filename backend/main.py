@@ -146,3 +146,6 @@ app.include_router(experiments_router)
 
 from api.training import router as training_router
 app.include_router(training_router)
+
+from api.quantum import router as quantum_router
+app.include_router(quantum_router)
