@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     environment: str = "local"
     log_level: str = "INFO"
+    llm_provider: str = "ollama"
+    ollama_base_url: str = "http://host.docker.internal:11434"
+    ollama_model: str = "qwen3:8b"
     openai_api_key: str = ""
     cors_origins: str = "http://localhost:3000,https://ai-engineering-cloud-platform.vercel.app"
 
