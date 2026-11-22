@@ -1,0 +1,8 @@
+﻿services:
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
