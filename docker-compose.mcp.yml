@@ -6,3 +6,9 @@
     restart: unless-stopped
     ports:
       - "8001:8001"
+  backend:
+    environment:
+      BLOCKCHAIN_MCP_URL: http://mcp:8001/mcp
+    depends_on:
+      mcp:
+        condition: service_started

@@ -1,4 +1,4 @@
-﻿version: "3.9"
+version: "3.9"
 
 services:
   postgres:
@@ -40,6 +40,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/aiplatform
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-dev-secret-change-me}
+      - MONITORING_API_KEY=${MONITORING_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
