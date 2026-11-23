@@ -14,10 +14,32 @@ A standalone engineering portfolio project by Tamas Nemeth.
 
 ## Current state
 - Responsive Next.js frontend: interactive navigation and honest module status cards.
-- FastAPI backend deployed separately on Render; frontend is on Vercel. Live availability must be verified independently.
-- GitHub Actions runs backend pytest and frontend build; CI #124 passed. Production agent/RAG functionality remains **unverified**.
+- FastAPI backend deployed separately on Render; frontend is on Vercel. Use the live DevOps panel and health endpoints below to check current availability.
+- GitHub Actions runs backend pytest and frontend build. [View workflow history](https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions).
+- Authenticated Agent and private RAG workflows require sign-in; LLM and tool-calling modes require a server-side OpenAI API key.
 - No fake agent count, uptime, cloud spend, security score or production monitoring.
 - No Azure billing account or payment card required for this preview.
+
+## Try the live platform
+
+Open the [AI Engineering Cloud Platform](https://ai-engineering-cloud-platform.vercel.app/).
+
+### Without signing in
+
+- **Data Engineering → CSV Quality Profiler:** Select a UTF-8, comma-separated CSV file up to 5 MB. Analysis runs in your browser; the file is not uploaded to the backend.
+- **RAG → Public RAG demo:** Ask about the two built-in sample documents. This is a static demonstration: it does not call OpenAI, query a database, or accept PDF uploads.
+
+### Sign-in required
+
+- Sign in through either **Agents** or **RAG**; the private Agent and RAG modules share the login.
+- **Agents:** Use authenticated chat and saved workflow runs. LLM and tool-calling modes require an OpenAI API key configured on the backend.
+- **Private RAG:** Upload and index a PDF, then ask questions about your documents and review the returned sources.
+- **MLOps:** Activating a model version is admin-only.
+
+### Check the live service
+
+- In **DevOps**, select **Refresh status** to check the backend, database and integrations and view recent GitHub Actions runs. These statuses can change.
+- Direct checks: [backend liveness](https://ai-engineering-cloud-platform.vercel.app/backend/health/live), [database readiness](https://ai-engineering-cloud-platform.vercel.app/backend/health/ready), and [integration status](https://ai-engineering-cloud-platform.vercel.app/backend/health/integrations).
 
 ## Local frontend
 ```bash

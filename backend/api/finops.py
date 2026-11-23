@@ -131,6 +131,19 @@ async def fetch_vercel_billing():
                 "services": [],
                 "render_billing": "not_available_via_connected_api",
             }
+        if exc.response.status_code == 404:
+            logger.info("vercel_focus_billing_unavailable", reason="upstream_404")
+            return {
+                "provider": "vercel",
+                "status": "billing_api_unavailable",
+                "window_days": 30,
+                "from": params["from"],
+                "to": params["to"],
+                "totals": [],
+                "daily": [],
+                "services": [],
+                "render_billing": "not_available_via_connected_api",
+            }
         upstream_status = exc.response.status_code
         logger.warning(
             "vercel_billing_request_failed",
