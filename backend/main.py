@@ -1,3 +1,4 @@
+﻿from api.unified_agent import router as unified_agent_router
 from api.rag import router as rag_router
 from api.agents import router as agents_router
 from api.finops import router as finops_router
@@ -146,3 +147,8 @@ app.include_router(experiments_router)
 
 from api.training import router as training_router
 app.include_router(training_router)
+
+from api.quantum import router as quantum_router
+app.include_router(quantum_router)
+app.include_router(unified_agent_router)
+

@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN python -c "import scipy, qiskit; from langchain_mcp_adapters.client import MultiServerMCPClient; print('SCIPY', scipy.__version__, 'QISKIT', qiskit.__version__, 'MCP_ADAPTER_OK')"
 
 COPY . .
 

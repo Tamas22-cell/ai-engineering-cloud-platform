@@ -1,11 +1,15 @@
-﻿from langgraph.prebuilt import ToolNode
+from agents.vqe_tool import vqe_optimize
+from agents.qaoa_tool import qaoa_optimize
+from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langchain_core.messages import AIMessage, ToolMessage
 
 from agents.tools.calculator import add_numbers
 
 
-tools = [add_numbers]
+from agents.quantum_tool import quantum_bell
+
+tools = [add_numbers, quantum_bell, qaoa_optimize, vqe_optimize]
 tool_node = ToolNode(tools)
 
 

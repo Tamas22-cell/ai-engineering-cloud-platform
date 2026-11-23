@@ -60,10 +60,28 @@ uvicorn main:app --reload
 ```
 Open http://localhost:8000/health/live.
 
+For tests that mock OpenAI responses, explicitly select the OpenAI provider in the test; the CI default is Ollama.
+
 The database readiness endpoint requires a configured PostgreSQL connection.
 Never commit credentials. Use environment variables. Backend auth/RBAC,
 Langfuse and OpenTelemetry production exporters still need configuration and verification,
 security tests and real evidence before they can be marked Verified.
+
+## Local AI Agent and blockchain MCP
+
+Start the API, PostgreSQL, Redis and blockchain MCP server together:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mcp.yml up --build
+```
+
+The Compose override points the backend at `http://mcp:8001/mcp` using the
+container service name. When running the API directly on the host, the adapter
+defaults to `http://localhost:8001/mcp`; set `BLOCKCHAIN_MCP_URL` to override it.
+The unified agent also needs Ollama reachable at `OLLAMA_BASE_URL` with the model
+configured by `OLLAMA_MODEL`. Set `MONITORING_API_KEY` in the root `.env` file to pass it into the backend and enable
+`GET /agent/metrics`; send it in the `X-Monitoring-Key` header. Missing
+configuration returns 503 and an invalid key returns 401.
 
 ## Deployment
 The Vercel frontend uses `frontend/` as the project root.

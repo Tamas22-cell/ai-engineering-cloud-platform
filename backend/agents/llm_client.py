@@ -1,4 +1,4 @@
-﻿import structlog
+import structlog
 from openai import AsyncOpenAI
 
 from core.config import settings
@@ -18,6 +18,28 @@ def create_llm_client() -> AsyncOpenAI:
 
 
 async def generate_response(message: str, max_output_tokens: int = 300) -> str:
+    if settings.llm_provider.lower() == "ollama":
+        import httpx
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{settings.ollama_base_url.rstrip('/')}/api/chat",
+                json={
+                    "model": settings.ollama_model,
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful AI engineering assistant."},
+                        {"role": "user", "content": message},
+                    ],
+                    "stream": False,
+                    "options": {"num_predict": max_output_tokens},
+                },
+            )
+            response.raise_for_status()
+            return response.json()["message"]["content"]
+
+    if settings.llm_provider.lower() != "openai":
+        raise RuntimeError("Unsupported LLM provider")
+
     client = create_llm_client()
 
     response = await client.responses.create(
