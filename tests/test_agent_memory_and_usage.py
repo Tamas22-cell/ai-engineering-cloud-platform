@@ -31,6 +31,7 @@ async def test_workflow_remembers_previous_turn(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_llm_token_usage_is_logged(monkeypatch):
+    monkeypatch.setattr(llm_client.settings, "llm_provider", "openai")
     response = SimpleNamespace(
         output_text="OK",
         usage=SimpleNamespace(input_tokens=12, output_tokens=4, total_tokens=16),

@@ -1,14 +1,15 @@
-﻿from types import SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
 
-from agents.gpt_tool_agent import gpt_tool_agent
+from agents.gpt_tool_agent import gpt_tool_agent, settings
 
 
 @pytest.mark.asyncio
-async def test_gpt_calculator_tool_call():
+async def test_gpt_calculator_tool_call(monkeypatch):
+    monkeypatch.setattr(settings, "llm_provider", "openai")
     tool_response = SimpleNamespace(
         output=[
             SimpleNamespace(
