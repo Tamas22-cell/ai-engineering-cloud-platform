@@ -60,6 +60,8 @@ uvicorn main:app --reload
 ```
 Open http://localhost:8000/health/live.
 
+For tests that mock OpenAI responses, explicitly select the OpenAI provider in the test; the CI default is Ollama.
+
 The database readiness endpoint requires a configured PostgreSQL connection.
 Never commit credentials. Use environment variables. Backend auth/RBAC,
 Langfuse and OpenTelemetry production exporters still need configuration and verification,
