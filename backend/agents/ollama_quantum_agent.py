@@ -6,7 +6,7 @@ from agents.tool_agent import tools
 from core.config import settings
 
 async def agent_node(state: MessagesState):
-    definitions = [{"type": "function", "function": {"name": t.name, "description": t.description or t.name, "parameters": t.args_schema.model_json_schema() if t.args_schema else {"type": "object", "properties": {}}}} for t in tools]
+    definitions = [{"type": "function", "function": {"name": t.name, "description": t.description or t.name, "parameters": t.args_schema.model_json_schema() if hasattr(t.args_schema, "model_json_schema") else (t.args_schema if isinstance(t.args_schema, dict) else {"type": "object", "properties": {}})}} for t in tools]
     messages = [{"role": "system", "content": "Choose the appropriate tool. Do not invent arguments."}]
     for m in state["messages"]:
         if isinstance(m, HumanMessage):
@@ -27,7 +27,7 @@ async def agent_node(state: MessagesState):
         args = fn.get("arguments", {})
         if not isinstance(args, dict):
             args = {}
-        fields = set(allowed[name].args_schema.model_fields) if allowed[name].args_schema else set()
+        fields = set(allowed[name].args_schema.get("properties", {})) if isinstance(allowed[name].args_schema, dict) else (set(allowed[name].args_schema.model_fields) if allowed[name].args_schema else set())
         args = {k: v for k, v in args.items() if k in fields}
         calls.append({"name": name, "args": args, "id": call.get("id") or f"call-{i}", "type": "tool_call"})
     return {"messages": [AIMessage(content=result.get("content") or "", tool_calls=calls)]}
@@ -42,3 +42,5 @@ graph.add_edge(START, "agent")
 graph.add_conditional_edges("agent", route_tools)
 graph.add_edge("tools", "agent")
 ollama_quantum_agent = graph.compile()
+
+
