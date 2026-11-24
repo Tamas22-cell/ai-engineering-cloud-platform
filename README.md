@@ -19,7 +19,7 @@ A standalone engineering portfolio project by Tamas Nemeth.
 - Blockchain MCP tool discovery and a Bitcoin block lookup were verified; local Ollama, VQE and QAOA runs were also verified.
 - Agent monitoring authentication and MLOps role boundaries have automated negative tests. QAOA reports an exact classical baseline for the current three-node Max-Cut graph.
 - GitHub Actions runs backend tests, the frontend build, dependency security audits and Compose/Kubernetes manifest checks. [View workflow history](https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions).
-- The RAG golden-vector fixture measures ranking with Recall@3 and MRR; it validates retrieval ranking behavior, not live embedding-provider quality.
+- A synthetic golden-vector fixture tests ranking logic. A separate benchmark generates real query and passage embeddings from the configured provider and reports Recall@k and MRR.
 - No fabricated agent counts, uptime, cloud spend, security scores or production telemetry are presented. No Azure billing account or payment card is required for this preview.
 
 ## Try the live platform
@@ -101,12 +101,26 @@ The backend is a separate service and must be deployed/configured separately.
 
 ### Still open
 - **n8n:** verify an end-to-end workflow response and scheduled run. This remains deferred until the final integration pass.
-- **RAG evaluation:** run the quality set with real embedding-provider outputs. The committed Recall@3/MRR fixture uses synthetic vectors and only validates ranking behavior.
+- **RAG evaluation run:** the real-provider benchmark is ready at `backend/evaluate_rag_embeddings.py`. Run `docker compose exec backend python /app/evaluate_rag_embeddings.py` and record the provider plus Recall@3/MRR results; the actual measurement has not yet been run.
 - **Cloud / Kubernetes:** perform a live Kubernetes deployment and add Terraform only when a target provider/cluster is selected. Current Kubernetes YAML is a validated template.
 - **FinOps:** connect provider billing data. Current RAG cost values are per-request estimates, not invoices.
 - **Backup and recovery:** perform and record a restore drill; an existing backup alone does not verify recovery.
 - **Langfuse:** verify delivery of an actual production trace. This is intentionally left until the end.
 - **Release check:** verify the latest merged commit is live on Render and Vercel.
+
+## RAG retrieval quality measurement
+
+The provider-backed benchmark embeds its built-in passages and questions using the
+currently configured `EMBEDDING_PROVIDER` (Ollama or OpenAI), ranks passages by
+cosine similarity, and reports Recall@k and MRR with per-question results. It does
+not access uploaded user documents or write to the database. The first run establishes
+a baseline; no threshold is claimed until the measured results are reviewed.
+
+Run it from the repository root after the backend container is running:
+
+```powershell
+docker compose exec backend python /app/evaluate_rag_embeddings.py
+```
 
 ## RAG token usage and optional cost estimate
 
