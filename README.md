@@ -98,7 +98,7 @@ The backend is a separate service and must be deployed/configured separately.
 - VQE and QAOA simulation. QAOA output now includes an exact classical exhaustive-search baseline for the current three-node graph.
 - Route-level RBAC denial checks for unauthenticated and insufficient-role MLOps writes.
 - Real-provider RAG retrieval benchmark: Ollama `nomic-embed-text`, 1,536 dimensions, 6 queries, Recall@3 1.00 and MRR@3 1.00 on the labeled evaluation dataset.
-- CI checks for the merged changes, including backend, frontend, security audit, Docker Compose and Kubernetes manifest validation.
+- Latest merged commit `8615052` is deployed on Render (`live`) and Vercel (`READY`); the Render service returned HTTP 200 from `/health/live`, `/health/ready`, and `/health/integrations` during release verification.\n- CI checks for the merged changes, including backend, frontend, security audit, Docker Compose and Kubernetes manifest validation.
 
 ### Still open
 - **n8n:** verify an end-to-end workflow response and scheduled run. This remains deferred until the final integration pass.
@@ -106,7 +106,7 @@ The backend is a separate service and must be deployed/configured separately.
 - **FinOps:** connect provider billing data. Current RAG cost values are per-request estimates, not invoices.
 - **Backup and recovery:** perform and record a restore drill; an existing backup alone does not verify recovery.
 - **Langfuse:** verify delivery of an actual production trace. This is intentionally left until the end.
-- **Release check:** verify the latest merged commit is live on Render and Vercel.
+
 
 ## RAG retrieval quality measurement
 
