@@ -1,4 +1,5 @@
 ﻿import os
+import logging
 from decimal import Decimal, InvalidOperation
 
 import httpx
@@ -6,6 +7,8 @@ from openai import AsyncOpenAI
 from opentelemetry import trace
 
 from core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class RAGAnswerGenerator:
@@ -71,27 +74,36 @@ class RAGAnswerGenerator:
             )
 
             if self.provider == "ollama":
-                async with httpx.AsyncClient(timeout=300.0) as client:
-                    response = await client.post(
-                        f"{settings.ollama_base_url.rstrip('/')}/api/chat",
-                        json={
-                            "model": model_name,
-                            "messages": [
-                                {"role": "system", "content": instructions},
-                                {"role": "user", "content": prompt},
-                            ],
-                            "stream": False,
-                            "think": False,
-                            "keep_alive": "10m",
-                            "options": {"temperature": 0.1, "num_predict": 96},
-                        },
+                try:
+                    async with httpx.AsyncClient(timeout=45.0) as client:
+                        response = await client.post(
+                            f"{settings.ollama_base_url.rstrip('/')}/api/chat",
+                            json={
+                                "model": model_name,
+                                "messages": [
+                                    {"role": "system", "content": instructions},
+                                    {"role": "user", "content": prompt},
+                                ],
+                                "stream": False,
+                                "think": False,
+                                "keep_alive": "10m",
+                                "options": {"temperature": 0.1, "num_predict": 96},
+                            },
+                        )
+                        response.raise_for_status()
+                        payload = response.json()
+                    answer = payload["message"]["content"]
+                    model_name = payload.get("model") or model_name
+                    input_tokens = int(payload.get("prompt_eval_count", 0) or 0)
+                    output_tokens = int(payload.get("eval_count", 0) or 0)
+                except httpx.TimeoutException:
+                    logger.warning("rag_ollama_timeout_using_extractive_fallback")
+                    excerpts = "\n\n".join(
+                        f"[{index}] {doc.get('text', '')}"
+                        for index, doc in enumerate(documents, start=1)
                     )
-                    response.raise_for_status()
-                    payload = response.json()
-                answer = payload["message"]["content"]
-                model_name = payload.get("model") or model_name
-                input_tokens = int(payload.get("prompt_eval_count", 0) or 0)
-                output_tokens = int(payload.get("eval_count", 0) or 0)
+                    answer = f"Ollama timed out. Retrieved document excerpts:\n{excerpts}"
+                    model_name = "ollama-timeout-extractive-fallback"
             else:
                 api_key = settings.openai_api_key
                 if not api_key and self.client is None:
