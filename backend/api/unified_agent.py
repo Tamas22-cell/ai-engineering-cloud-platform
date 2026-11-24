@@ -1,12 +1,15 @@
-from agents.monitoring_auth import require_monitoring_key
+import logging
 import time
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from langchain_core.messages import HumanMessage
+
+from agents.monitoring_auth import require_monitoring_key
 from agents.unified_agent import create_unified_agent
 from agents.monitoring import record_run, get_metrics
+from fastapi import APIRouter, HTTPException, Depends
+from langchain_core.messages import HumanMessage
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/agent", tags=["Unified AI Agent"])
+logger = logging.getLogger(__name__)
 
 
 class AgentRequest(BaseModel):
@@ -36,6 +39,7 @@ async def invoke_agent(request: AgentRequest):
         }
 
     except Exception:
+        logger.exception("agent_execution_failed")
         raise HTTPException(
             status_code=500,
             detail="Agent execution failed"
