@@ -2,7 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   async rewrites() {
-    return [{ source: '/backend/:path*', destination: 'https://ai-engineering-api.onrender.com/:path*' }];
+    const backendUrl = (
+      process.env.BACKEND_URL || 'https://ai-engineering-api.onrender.com'
+    ).replace(/\/$/, '');
+    return [{ source: '/backend/:path*', destination: `${backendUrl}/:path*` }];
   },
   images: {
     unoptimized: true,
