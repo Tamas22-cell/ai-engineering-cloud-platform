@@ -1,5 +1,4 @@
-﻿from collections import Counter
-from math import pi
+from itertools import product
 
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
@@ -11,6 +10,20 @@ N = 3
 
 def cut_value(bits):
     return sum(bits[i] != bits[j] for i, j in EDGES)
+
+
+def classical_max_cut():
+    """Find the exact Max-Cut optimum by exhaustive search for this small graph."""
+    candidates = (
+        (cut_value(bits), "".join(map(str, bits)), bits)
+        for bits in product((0, 1), repeat=N)
+    )
+    value, bitstring, _ = max(candidates, key=lambda candidate: candidate[0])
+    return {
+        "algorithm": "classical_exhaustive_search",
+        "best_bitstring": bitstring,
+        "cut_value": value,
+    }
 
 
 def build_qaoa(gamma, beta):
@@ -55,6 +68,9 @@ def run_qaoa():
     probs = probabilities(best.x)
     top = max(probs, key=probs.get)
     bits = [int(x) for x in top[::-1]]
+    observed_cut = cut_value(bits)
+    expected_cut = round(-best.fun, 6)
+    baseline = classical_max_cut()
 
     return {
         "status": "success",
@@ -62,9 +78,14 @@ def run_qaoa():
         "problem": "Max-Cut",
         "qubits": N,
         "best_bitstring": top,
-        "cut_value": cut_value(bits),
-        "expected_cut": round(-best.fun, 6),
+        "cut_value": observed_cut,
+        "expected_cut": expected_cut,
         "parameters": [round(float(x), 6) for x in best.x],
+        "classical_baseline": baseline,
+        "sample_gap_to_classical": baseline["cut_value"] - observed_cut,
+        "expected_gap_to_classical": round(
+            baseline["cut_value"] - expected_cut, 6
+        ),
     }
 
 
