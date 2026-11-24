@@ -94,6 +94,7 @@ The backend is a separate service and must be deployed/configured separately.
 ### Complete and verified
 - Core FastAPI, PostgreSQL/pgvector, Redis, Docker and the Vercel/Render deployment path.
 - Authenticated Agent workflow, Blockchain MCP tool discovery/call, and agent metrics authentication.
+- n8n ChatGPT MCP connection and published chat workflow verified end to end on 2026-11-24; the workflow returned platform MCP status `OK`. No scheduled automation is configured because the current workflow is chat-triggered.
 - Private RAG upload, indexing and source-verified answer on a real PDF; live stage timings were returned.
 - VQE and QAOA simulation. QAOA output now includes an exact classical exhaustive-search baseline for the current three-node graph.
 - Route-level RBAC denial checks for unauthenticated and insufficient-role MLOps writes.
@@ -101,7 +102,6 @@ The backend is a separate service and must be deployed/configured separately.
 - Latest merged commit `8615052` is deployed on Render (`live`) and Vercel (`READY`); the Render service returned HTTP 200 from `/health/live`, `/health/ready`, and `/health/integrations` during release verification.\n- CI checks for the merged changes, including backend, frontend, security audit, Docker Compose and Kubernetes manifest validation.
 
 ### Still open
-- **n8n:** verify an end-to-end workflow response and scheduled run. This remains deferred until the final integration pass.
 - **Cloud / Kubernetes:** perform a live Kubernetes deployment and add Terraform only when a target provider/cluster is selected. Current Kubernetes YAML is a validated template.
 - **FinOps:** connect provider billing data. Current RAG cost values are per-request estimates, not invoices.
 - **Backup and recovery:** perform and record a restore drill; an existing backup alone does not verify recovery.
