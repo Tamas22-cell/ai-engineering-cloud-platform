@@ -13,12 +13,14 @@
 A standalone engineering portfolio project by Tamas Nemeth.
 
 ## Current state
-- Responsive Next.js frontend: interactive navigation and honest module status cards.
-- FastAPI backend deployed separately on Render; frontend is on Vercel. Use the live DevOps panel and health endpoints below to check current availability.
-- GitHub Actions runs backend pytest and frontend build. [View workflow history](https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions).
-- Authenticated Agent and private RAG workflows require sign-in; LLM and tool-calling modes require a server-side OpenAI API key.
-- No fake agent count, uptime, cloud spend, security score or production monitoring.
-- No Azure billing account or payment card required for this preview.
+- Responsive Next.js frontend on Vercel and FastAPI backend on Render; the live DevOps panel and health endpoints show current availability.
+- Private RAG PDF upload, indexing, source-cited answers and measured LangGraph stage timings were verified against a real uploaded document.
+- Authenticated Agent and private RAG workflows require sign-in. Hosted LLM and tool-calling modes use server-side provider configuration.
+- Blockchain MCP tool discovery and a Bitcoin block lookup were verified; local Ollama, VQE and QAOA runs were also verified.
+- Agent monitoring authentication and MLOps role boundaries have automated negative tests. QAOA reports an exact classical baseline for the current three-node Max-Cut graph.
+- GitHub Actions runs backend tests, the frontend build, dependency security audits and Compose/Kubernetes manifest checks. [View workflow history](https://github.com/Tamas22-cell/ai-engineering-cloud-platform/actions).
+- The RAG golden-vector fixture measures ranking with Recall@3 and MRR; it validates retrieval ranking behavior, not live embedding-provider quality.
+- No fabricated agent counts, uptime, cloud spend, security scores or production telemetry are presented. No Azure billing account or payment card is required for this preview.
 
 ## Try the live platform
 
@@ -63,9 +65,9 @@ Open http://localhost:8000/health/live.
 For tests that mock OpenAI responses, explicitly select the OpenAI provider in the test; the CI default is Ollama.
 
 The database readiness endpoint requires a configured PostgreSQL connection.
-Never commit credentials. Use environment variables. Backend auth/RBAC,
-Langfuse and OpenTelemetry production exporters still need configuration and verification,
-security tests and real evidence before they can be marked Verified.
+Never commit credentials. Use environment variables. JWT authentication and route-level
+RBAC denial checks are implemented and covered by CI. Langfuse production trace delivery
+and end-to-end restore procedures are not yet verified.
 
 ## Local AI Agent and blockchain MCP
 
@@ -87,12 +89,24 @@ configuration returns 503 and an invalid key returns 401.
 The Vercel frontend uses `frontend/` as the project root.
 The backend is a separate service and must be deployed/configured separately.
 
-## Roadmap
-1. Contract tests and backend security hardening.
-2. Authentication + authorization/RBAC with negative tests.
-3. RAG ingestion/retrieval and agent workflows.
-4. Experiment tracking, traces and monitoring.
-5. Staging deployment, cost guards and verified production checks.
+## Verified project status — 2026-11-24
+
+### Complete and verified
+- Core FastAPI, PostgreSQL/pgvector, Redis, Docker and the Vercel/Render deployment path.
+- Authenticated Agent workflow, Blockchain MCP tool discovery/call, and agent metrics authentication.
+- Private RAG upload, indexing and source-verified answer on a real PDF; live stage timings were returned.
+- VQE and QAOA simulation. QAOA output now includes an exact classical exhaustive-search baseline for the current three-node graph.
+- Route-level RBAC denial checks for unauthenticated and insufficient-role MLOps writes.
+- CI checks for the merged changes, including backend, frontend, security audit, Docker Compose and Kubernetes manifest validation.
+
+### Still open
+- **n8n:** verify an end-to-end workflow response and scheduled run. This remains deferred until the final integration pass.
+- **RAG evaluation:** run the quality set with real embedding-provider outputs. The committed Recall@3/MRR fixture uses synthetic vectors and only validates ranking behavior.
+- **Cloud / Kubernetes:** perform a live Kubernetes deployment and add Terraform only when a target provider/cluster is selected. Current Kubernetes YAML is a validated template.
+- **FinOps:** connect provider billing data. Current RAG cost values are per-request estimates, not invoices.
+- **Backup and recovery:** perform and record a restore drill; an existing backup alone does not verify recovery.
+- **Langfuse:** verify delivery of an actual production trace. This is intentionally left until the end.
+- **Release check:** verify the latest merged commit is live on Render and Vercel.
 
 ## RAG token usage and optional cost estimate
 
