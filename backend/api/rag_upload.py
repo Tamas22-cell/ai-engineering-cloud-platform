@@ -35,7 +35,10 @@ async def upload_pdf(
         raise HTTPException(status_code=400, detail="Invalid PDF format")
 
     try:
-        reader = PdfReader(io.BytesIO(data), strict=True)
+        # Recoverable cross-reference issues are common in generated PDFs;
+        # pypdf's default non-strict mode repairs them while still rejecting
+        # unreadable or unsupported files.
+        reader = PdfReader(io.BytesIO(data), strict=False)
         page_count = len(reader.pages)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid or unsupported PDF")
