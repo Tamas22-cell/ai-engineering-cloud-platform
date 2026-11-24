@@ -2,23 +2,19 @@ from pathlib import Path
 
 import yaml
 
-from agents.blockchain_mcp_adapter import create_blockchain_client
+from agents.blockchain_mcp_adapter import _blockchain_mcp_url
 
 
 def test_blockchain_mcp_url_uses_localhost_by_default(monkeypatch):
     monkeypatch.delenv("BLOCKCHAIN_MCP_URL", raising=False)
 
-    client = create_blockchain_client()
-
-    assert client.connections["blockchain"]["url"] == "http://localhost:8001/mcp"
+    assert _blockchain_mcp_url() == "http://localhost:8001/mcp"
 
 
 def test_blockchain_mcp_url_accepts_container_service_name(monkeypatch):
     monkeypatch.setenv("BLOCKCHAIN_MCP_URL", "http://mcp:8001/mcp/")
 
-    client = create_blockchain_client()
-
-    assert client.connections["blockchain"]["url"] == "http://mcp:8001/mcp"
+    assert _blockchain_mcp_url() == "http://mcp:8001/mcp"
 
 
 def test_compose_mcp_override_routes_backend_to_mcp_service():
