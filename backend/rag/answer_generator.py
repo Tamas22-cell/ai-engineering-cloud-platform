@@ -50,7 +50,7 @@ class RAGAnswerGenerator:
             raise RuntimeError("Unsupported RAG answer provider")
 
         tracer = trace.get_tracer("ai-engineering.rag")
-        model_name = settings.ollama_model if self.provider == "ollama" else "gpt-4.1-mini"
+        model_name = settings.ollama_rag_model if self.provider == "ollama" else "gpt-4.1-mini"
         input_tokens = output_tokens = 0
         cost_usd = None
         with tracer.start_as_current_span("rag.llm.generate") as span:
@@ -71,7 +71,7 @@ class RAGAnswerGenerator:
             )
 
             if self.provider == "ollama":
-                async with httpx.AsyncClient(timeout=120.0) as client:
+                async with httpx.AsyncClient(timeout=300.0) as client:
                     response = await client.post(
                         f"{settings.ollama_base_url.rstrip('/')}/api/chat",
                         json={
@@ -82,7 +82,8 @@ class RAGAnswerGenerator:
                             ],
                             "stream": False,
                             "think": False,
-                            "options": {"temperature": 0.1, "num_predict": 512},
+                            "keep_alive": "10m",
+                            "options": {"temperature": 0.1, "num_predict": 96},
                         },
                     )
                     response.raise_for_status()
