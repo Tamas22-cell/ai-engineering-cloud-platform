@@ -1,0 +1,57 @@
+{
+  "dataset": "platform-rag-semantic-retrieval-v1",
+  "description": "Small domain-specific benchmark. Every query is labeled with the passage that directly answers it. Real query and passage embeddings are generated at run time using the configured embedding provider.",
+  "top_k": 3,
+  "passages": [
+    {
+      "id": "backend",
+      "text": "The platform backend is a Python FastAPI service. Its health API exposes liveness and readiness checks, and readiness verifies the PostgreSQL connection."
+    },
+    {
+      "id": "rag",
+      "text": "Private RAG ingests PDF documents, extracts text chunks, stores vector embeddings in PostgreSQL with pgvector, retrieves relevant chunks by cosine similarity, and returns answers with source citations."
+    },
+    {
+      "id": "blockchain",
+      "text": "The blockchain MCP server provides read-only tools for Bitcoin latest block height and hash, Ethereum block data, and Solana slots and wallet balances."
+    },
+    {
+      "id": "quantum",
+      "text": "The quantum module runs VQE for ground-state energy estimation and QAOA for Max-Cut. The QAOA result is compared with an exact classical exhaustive-search optimum for the three-node graph."
+    },
+    {
+      "id": "security",
+      "text": "JWT authentication protects private APIs. Viewer accounts are read-only, developers may register models and record metrics, and only administrators may promote a model to production."
+    },
+    {
+      "id": "deployment",
+      "text": "The web frontend is hosted on Vercel and the Python API is hosted on Render. PostgreSQL stores application data and Redis provides cache and short-lived state."
+    }
+  ],
+  "queries": [
+    {
+      "question": "How does the private PDF question answering feature retrieve evidence and show its sources?",
+      "relevant_passage_ids": ["rag"]
+    },
+    {
+      "question": "Which read-only blockchain tools can return the Bitcoin block hash and Solana slot?",
+      "relevant_passage_ids": ["blockchain"]
+    },
+    {
+      "question": "What quantum algorithms does the platform run, and what classical reference is used for QAOA?",
+      "relevant_passage_ids": ["quantum"]
+    },
+    {
+      "question": "What can a viewer do compared with a developer and an administrator?",
+      "relevant_passage_ids": ["security"]
+    },
+    {
+      "question": "Where are the frontend, API, database and cache hosted or stored?",
+      "relevant_passage_ids": ["deployment"]
+    },
+    {
+      "question": "Which health endpoint checks whether the database is connected?",
+      "relevant_passage_ids": ["backend"]
+    }
+  ]
+}
