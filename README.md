@@ -97,11 +97,11 @@ The backend is a separate service and must be deployed/configured separately.
 - Private RAG upload, indexing and source-verified answer on a real PDF; live stage timings were returned.
 - VQE and QAOA simulation. QAOA output now includes an exact classical exhaustive-search baseline for the current three-node graph.
 - Route-level RBAC denial checks for unauthenticated and insufficient-role MLOps writes.
+- Real-provider RAG retrieval benchmark: Ollama `nomic-embed-text`, 1,536 dimensions, 6 queries, Recall@3 1.00 and MRR@3 1.00 on the labeled evaluation dataset.
 - CI checks for the merged changes, including backend, frontend, security audit, Docker Compose and Kubernetes manifest validation.
 
 ### Still open
 - **n8n:** verify an end-to-end workflow response and scheduled run. This remains deferred until the final integration pass.
-- **RAG evaluation run:** the real-provider benchmark is ready at `backend/evaluate_rag_embeddings.py`. Run `docker compose exec backend python /app/evaluate_rag_embeddings.py` and record the provider plus Recall@3/MRR results; the actual measurement has not yet been run.
 - **Cloud / Kubernetes:** perform a live Kubernetes deployment and add Terraform only when a target provider/cluster is selected. Current Kubernetes YAML is a validated template.
 - **FinOps:** connect provider billing data. Current RAG cost values are per-request estimates, not invoices.
 - **Backup and recovery:** perform and record a restore drill; an existing backup alone does not verify recovery.
@@ -113,8 +113,10 @@ The backend is a separate service and must be deployed/configured separately.
 The provider-backed benchmark embeds its built-in passages and questions using the
 currently configured `EMBEDDING_PROVIDER` (Ollama or OpenAI), ranks passages by
 cosine similarity, and reports Recall@k and MRR with per-question results. It does
-not access uploaded user documents or write to the database. The first run establishes
-a baseline; no threshold is claimed until the measured results are reviewed.
+not access uploaded user documents or write to the database. The first measured
+baseline used Ollama `nomic-embed-text` (1,536 dimensions) and scored Recall@3 1.00
+and MRR@3 1.00 across six labeled questions. This result applies to this evaluation
+dataset and does not guarantee retrieval quality for every user document.
 
 Run it from the repository root after the backend container is running:
 
