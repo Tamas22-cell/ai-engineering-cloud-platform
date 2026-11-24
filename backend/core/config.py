@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     llm_provider: str = "ollama"
     ollama_base_url: str = "http://host.docker.internal:11434"
     ollama_model: str = "qwen3:8b"
+    embedding_provider: str = "ollama"
+    ollama_embedding_model: str = "nomic-embed-text"
     openai_api_key: str = ""
     cors_origins: str = "http://localhost:3000,https://ai-engineering-cloud-platform.vercel.app"
 
