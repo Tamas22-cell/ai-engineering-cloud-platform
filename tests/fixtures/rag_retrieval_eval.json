@@ -1,0 +1,68 @@
+{
+  "description": "Deterministic golden-vector cases for the persistent cosine retriever. Synthetic vectors validate ranking behavior, not embedding-model quality.",
+  "top_k": 3,
+  "corpus": [
+    {
+      "chunk_id": "python",
+      "document_id": "doc-platform",
+      "filename": "platform.pdf",
+      "page": 1,
+      "chunk": 1,
+      "text": "The platform uses Python for AI engineering.",
+      "embedding": [1.0, 0.0, 0.0]
+    },
+    {
+      "chunk_id": "rag",
+      "document_id": "doc-platform",
+      "filename": "platform.pdf",
+      "page": 2,
+      "chunk": 1,
+      "text": "RAG retrieves relevant passages before generating an answer.",
+      "embedding": [0.98, 0.02, 0.0]
+    },
+    {
+      "chunk_id": "database",
+      "document_id": "doc-storage",
+      "filename": "storage.pdf",
+      "page": 1,
+      "chunk": 1,
+      "text": "PostgreSQL stores documents and embeddings.",
+      "embedding": [0.0, 0.0, 1.0]
+    },
+    {
+      "chunk_id": "mlops",
+      "document_id": "doc-mlops",
+      "filename": "mlops.pdf",
+      "page": 1,
+      "chunk": 1,
+      "text": "MLOps tracks experiments and registered model versions.",
+      "embedding": [0.02, 0.0, 0.98]
+    },
+    {
+      "chunk_id": "security",
+      "document_id": "doc-security",
+      "filename": "security.pdf",
+      "page": 1,
+      "chunk": 1,
+      "text": "Role-based access controls protect administrator operations.",
+      "embedding": [0.0, 1.0, 0.0]
+    }
+  ],
+  "queries": [
+    {
+      "question": "Which language is used for AI engineering, and how does RAG answer questions?",
+      "embedding": [1.0, 0.0, 0.0],
+      "relevant_chunk_ids": ["python", "rag"]
+    },
+    {
+      "question": "Where are documents and embeddings stored, and what does MLOps track?",
+      "embedding": [0.0, 0.0, 1.0],
+      "relevant_chunk_ids": ["database", "mlops"]
+    },
+    {
+      "question": "What protects administrator operations?",
+      "embedding": [0.0, 1.0, 0.0],
+      "relevant_chunk_ids": ["security"]
+    }
+  ]
+}
