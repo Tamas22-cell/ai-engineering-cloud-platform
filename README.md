@@ -95,6 +95,7 @@ The backend is a separate service and must be deployed/configured separately.
 - Core FastAPI, PostgreSQL/pgvector, Redis, Docker and the Vercel/Render deployment path.
 - Authenticated Agent workflow, Blockchain MCP tool discovery/call, and agent metrics authentication.
 - n8n ChatGPT MCP connection and published chat workflow verified end to end on 2026-11-24; the workflow returned platform MCP status `OK`. No scheduled automation is configured because the current workflow is chat-triggered.
+- PostgreSQL backup and restore drill passed locally on 2026-11-25: custom-format dump restored into an isolated check database with 14 public tables, 1 document and 1 chunk. The backup file remains local and is not committed.
 - Private RAG upload, indexing and source-verified answer on a real PDF; live stage timings were returned.
 - VQE and QAOA simulation. QAOA output now includes an exact classical exhaustive-search baseline for the current three-node graph.
 - Route-level RBAC denial checks for unauthenticated and insufficient-role MLOps writes.
@@ -104,7 +105,7 @@ The backend is a separate service and must be deployed/configured separately.
 ### Still open
 - **Cloud / Kubernetes:** perform a live Kubernetes deployment and add Terraform only when a target provider/cluster is selected. Current Kubernetes YAML is a validated template.
 - **FinOps:** connect provider billing data. Current RAG cost values are per-request estimates, not invoices.
-- **Backup and recovery:** perform and record a restore drill; an existing backup alone does not verify recovery.
+
 - **Langfuse:** verify delivery of an actual production trace. This is intentionally left until the end.
 
 
