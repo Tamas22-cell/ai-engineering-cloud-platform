@@ -66,8 +66,9 @@ For tests that mock OpenAI responses, explicitly select the OpenAI provider in t
 
 The database readiness endpoint requires a configured PostgreSQL connection.
 Never commit credentials. Use environment variables. JWT authentication and route-level
-RBAC denial checks are implemented and covered by CI. Langfuse production trace delivery
-and end-to-end restore procedures are not yet verified.
+RBAC denial checks are implemented and covered by CI. The Langfuse delivery probe and a local
+PostgreSQL backup restore drill were verified on 2026-11-25; actual RAG trace visibility in Langfuse
+is still pending.
 
 ## Local AI Agent and blockchain MCP
 
@@ -89,7 +90,7 @@ configuration returns 503 and an invalid key returns 401.
 The Vercel frontend uses `frontend/` as the project root.
 The backend is a separate service and must be deployed/configured separately.
 
-## Verified project status — 2026-11-24
+## Verified project status — 2026-11-25
 
 ### Complete and verified
 - Core FastAPI, PostgreSQL/pgvector, Redis, Docker and the Vercel/Render deployment path.
@@ -97,17 +98,18 @@ The backend is a separate service and must be deployed/configured separately.
 - n8n ChatGPT MCP connection and published chat workflow verified end to end on 2026-11-24; the workflow returned platform MCP status `OK`. No scheduled automation is configured because the current workflow is chat-triggered.
 - Docker Desktop local Kubernetes backend deployment verified on 2026-11-25: rollout succeeded, pod `1/1 Running`, and `/health/live` plus `/health/ready` returned HTTP 200. The pod connected to local Compose PostgreSQL and Redis.
 - PostgreSQL backup and restore drill passed locally on 2026-11-25: custom-format dump restored into an isolated check database with 14 public tables, 1 document and 1 chunk. The backup file remains local and is not committed.
+- Langfuse OTLP delivery probe succeeded on 2026-11-25 and the app showed “Tesztspan fogadva”; this verifies test-span delivery, not yet visibility of a real RAG execution trace in Langfuse.
 - Private RAG upload, indexing and source-verified answer on a real PDF; live stage timings were returned.
 - VQE and QAOA simulation. QAOA output now includes an exact classical exhaustive-search baseline for the current three-node graph.
 - Route-level RBAC denial checks for unauthenticated and insufficient-role MLOps writes.
 - Real-provider RAG retrieval benchmark: Ollama `nomic-embed-text`, 1,536 dimensions, 6 queries, Recall@3 1.00 and MRR@3 1.00 on the labeled evaluation dataset.
-- Latest merged commit `8615052` is deployed on Render (`live`) and Vercel (`READY`); the Render service returned HTTP 200 from `/health/live`, `/health/ready`, and `/health/integrations` during release verification.\n- CI checks for the merged changes, including backend, frontend, security audit, Docker Compose and Kubernetes manifest validation.
+- Latest merged commit `8615052` is deployed on Render (`live`) and Vercel (`READY`); the Render service returned HTTP 200 from `/health/live`, `/health/ready`, and `/health/integrations` during release verification.
+- CI checks for the merged changes, including backend, frontend, security audit, Docker Compose and Kubernetes manifest validation.
 
 ### Still open
 - **Cloud / Terraform (optional):** production cloud cluster deployment and Terraform are deferred until a provider is selected; the local Docker Desktop Kubernetes deployment is verified.
-- **FinOps:** connect provider billing data. Current RAG cost values are per-request estimates, not invoices.
-
-- **Langfuse:** verify delivery of an actual production trace. This is intentionally left until the end.
+- **FinOps / Vercel:** the live dashboard reports that FOCUS billing is unavailable for this account or team. Check invoices and current charges in the Vercel dashboard; no further application-side connection can enable this endpoint for the current account/team.
+- **Langfuse:** confirm that an actual RAG execution trace appears in the Langfuse project; the content-free delivery probe has already succeeded.
 
 
 ## RAG retrieval quality measurement
@@ -146,4 +148,4 @@ Use verified current prices for the configured model (`gpt-4.1-mini`). If either
 3. Vercel: dashboard loads and reports backend status correctly.
 4. Authenticated RAG: upload PDF, index, ask a question, verify citations and token usage.
 5. Security: no API keys in frontend, JWT remains required for protected routes.
-6. Langfuse: production tracing is **not verified** until actual traces are observed.
+6. Langfuse: the content-free OTLP delivery probe is verified; confirm an actual RAG trace in the Langfuse project before calling production tracing fully verified.
