@@ -108,7 +108,7 @@ The backend is a separate service and must be deployed/configured separately.
 
 ### Still open
 - **Cloud / Terraform (optional):** production cloud cluster deployment and Terraform are deferred until a provider is selected; the local Docker Desktop Kubernetes deployment is verified.
-- **FinOps / Vercel:** `VERCEL_ACCESS_TOKEN` was rotated in the Render `ai-engineering-api` environment and the redeployment succeeded on 2026-11-25. Retry `Fetch Vercel costs` once with the new token; an earlier response said FOCUS billing was unavailable for the account/team, so the access result remains unconfirmed until this retry.
+- **FinOps / Vercel:** `VERCEL_ACCESS_TOKEN` was rotated in the Render `ai-engineering-api` environment and the redeployment succeeded on 2026-11-25. Retrying `Fetch Vercel costs` with the new token still returned “Vercel FOCUS billing is not available for this account or team.” The application is configured; FOCUS billing data is unavailable for the current Vercel account/team. Use the Vercel dashboard for invoices and actual charges.
 - **Langfuse:** confirm that an actual RAG execution trace appears in the Langfuse project; the content-free delivery probe has already succeeded.
 
 
