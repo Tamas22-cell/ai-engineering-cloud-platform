@@ -95,6 +95,7 @@ The backend is a separate service and must be deployed/configured separately.
 - Core FastAPI, PostgreSQL/pgvector, Redis, Docker and the Vercel/Render deployment path.
 - Authenticated Agent workflow, Blockchain MCP tool discovery/call, and agent metrics authentication.
 - n8n ChatGPT MCP connection and published chat workflow verified end to end on 2026-11-24; the workflow returned platform MCP status `OK`. No scheduled automation is configured because the current workflow is chat-triggered.
+- Docker Desktop local Kubernetes backend deployment verified on 2026-11-25: rollout succeeded, pod `1/1 Running`, and `/health/live` plus `/health/ready` returned HTTP 200. The pod connected to local Compose PostgreSQL and Redis.
 - PostgreSQL backup and restore drill passed locally on 2026-11-25: custom-format dump restored into an isolated check database with 14 public tables, 1 document and 1 chunk. The backup file remains local and is not committed.
 - Private RAG upload, indexing and source-verified answer on a real PDF; live stage timings were returned.
 - VQE and QAOA simulation. QAOA output now includes an exact classical exhaustive-search baseline for the current three-node graph.
@@ -103,7 +104,7 @@ The backend is a separate service and must be deployed/configured separately.
 - Latest merged commit `8615052` is deployed on Render (`live`) and Vercel (`READY`); the Render service returned HTTP 200 from `/health/live`, `/health/ready`, and `/health/integrations` during release verification.\n- CI checks for the merged changes, including backend, frontend, security audit, Docker Compose and Kubernetes manifest validation.
 
 ### Still open
-- **Cloud / Kubernetes:** perform a live Kubernetes deployment and add Terraform only when a target provider/cluster is selected. Current Kubernetes YAML is a validated template.
+- **Cloud / Terraform (optional):** production cloud cluster deployment and Terraform are deferred until a provider is selected; the local Docker Desktop Kubernetes deployment is verified.
 - **FinOps:** connect provider billing data. Current RAG cost values are per-request estimates, not invoices.
 
 - **Langfuse:** verify delivery of an actual production trace. This is intentionally left until the end.
