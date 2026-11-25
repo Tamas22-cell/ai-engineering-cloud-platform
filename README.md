@@ -109,7 +109,7 @@ The backend is a separate service and must be deployed/configured separately.
 ### Still open
 - **Cloud / Terraform (optional):** production cloud cluster deployment and Terraform are deferred until a provider is selected; the local Docker Desktop Kubernetes deployment is verified.
 - **FinOps / Vercel:** `VERCEL_ACCESS_TOKEN` was rotated in the Render `ai-engineering-api` environment and the redeployment succeeded on 2026-11-25. Retrying `Fetch Vercel costs` with the new token still returned “Vercel FOCUS billing is not available for this account or team.” The application is configured; FOCUS billing data is unavailable for the current Vercel account/team. Use the Vercel dashboard for invoices and actual charges.
-- **Langfuse:** confirm that an actual RAG execution trace appears in the Langfuse project; the content-free delivery probe has already succeeded.
+- **Langfuse UI:** the content-free OTLP delivery probe succeeded (“Tesztspan fogadva”). A real RAG trace could not be checked in the Langfuse dashboard because no Langfuse account/project is available; this is outside the platform’s core functionality.
 
 
 ## RAG retrieval quality measurement
