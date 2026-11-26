@@ -4,6 +4,8 @@ import time
 from agents.monitoring_auth import require_monitoring_key
 from agents.unified_agent import create_unified_agent
 from agents.monitoring import record_run, get_metrics
+from core.dependencies import get_current_user
+from core.rate_limit import rate_limit
 from fastapi import APIRouter, HTTPException, Depends
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
@@ -16,7 +18,14 @@ class AgentRequest(BaseModel):
     message: str
 
 
-@router.post("/invoke")
+async def require_agent_access(
+    user=Depends(get_current_user),
+    _rate_limit=Depends(rate_limit(5)),
+):
+    return user
+
+
+@router.post("/invoke", dependencies=[Depends(require_agent_access)])
 async def invoke_agent(request: AgentRequest):
     start = time.perf_counter()
     tools_used = []
