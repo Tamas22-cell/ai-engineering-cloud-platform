@@ -6,6 +6,7 @@ import httpx
 from openai import AsyncOpenAI
 from opentelemetry import trace
 
+from agents.llm_client import create_huggingface_client
 from core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -49,11 +50,16 @@ class RAGAnswerGenerator:
 
         context = "\n\n".join(context_parts)
 
-        if self.provider not in {"ollama", "openai"}:
+        if self.provider not in {"ollama", "openai", "huggingface"}:
             raise RuntimeError("Unsupported RAG answer provider")
 
         tracer = trace.get_tracer("ai-engineering.rag")
-        model_name = settings.ollama_rag_model if self.provider == "ollama" else "gpt-4.1-mini"
+        if self.provider == "ollama":
+            model_name = settings.ollama_rag_model
+        elif self.provider == "huggingface":
+            model_name = settings.hf_model
+        else:
+            model_name = "gpt-4.1-mini"
         input_tokens = output_tokens = 0
         cost_usd = None
         with tracer.start_as_current_span("rag.llm.generate") as span:
@@ -104,6 +110,21 @@ class RAGAnswerGenerator:
                     )
                     answer = f"Ollama timed out. Retrieved document excerpts:\n{excerpts}"
                     model_name = "ollama-timeout-extractive-fallback"
+            elif self.provider == "huggingface":
+                client = create_huggingface_client()
+                response = await client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": instructions},
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=1024,
+                    temperature=0.1,
+                )
+                answer = response.choices[0].message.content or ""
+                usage = getattr(response, "usage", None)
+                input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+                output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
             else:
                 api_key = settings.openai_api_key
                 if not api_key and self.client is None:
