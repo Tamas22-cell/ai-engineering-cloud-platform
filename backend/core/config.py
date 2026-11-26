@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     embedding_provider: str = "ollama"
     ollama_embedding_model: str = "nomic-embed-text"
     openai_api_key: str = ""
+    hf_token: str = ""
+    hf_base_url: str = "https://router.huggingface.co/v1"
+    hf_model: str = "Qwen/Qwen3.5-9B"
     cors_origins: str = "http://localhost:3000,https://ai-engineering-cloud-platform.vercel.app"
 
     @model_validator(mode="after")
