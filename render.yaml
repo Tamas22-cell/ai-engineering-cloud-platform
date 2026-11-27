@@ -17,5 +17,11 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: HF_BASE_URL
+        value: https://router.huggingface.co/v1
+      - key: HF_MODEL
+        value: Qwen/Qwen3.5-9B
       - key: CORS_ORIGINS
         value: https://ai-engineering-cloud-platform.vercel.app

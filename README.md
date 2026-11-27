@@ -34,7 +34,7 @@ Open the [AI Engineering Cloud Platform](https://ai-engineering-cloud-platform.v
 ### Sign-in required
 
 - Sign in through either **Agents** or **RAG**; the private Agent and RAG modules share the login.
-- **Agents:** Use authenticated chat and saved workflow runs. LLM and tool-calling modes require an OpenAI API key configured on the backend.
+- **Agents:** Use authenticated chat and saved workflow runs. LLM and tool-calling modes use a server-side OpenAI or Hugging Face provider configuration.
 - **Private RAG:** Upload and index a PDF, then ask questions about your documents and review the returned sources.
 - **MLOps:** Activating a model version is admin-only.
 
@@ -80,8 +80,22 @@ docker compose -f docker-compose.yml -f docker-compose.mcp.yml up --build
 The Compose override points the backend at `http://mcp:8001/mcp` using the
 container service name. When running the API directly on the host, the adapter
 defaults to `http://localhost:8001/mcp`; set `BLOCKCHAIN_MCP_URL` to override it.
-The unified agent also needs Ollama reachable at `OLLAMA_BASE_URL` with the model
-configured by `OLLAMA_MODEL`. Set `MONITORING_API_KEY` in the root `.env` file to pass it into the backend and enable
+The unified agent uses the provider selected by `LLM_PROVIDER`. To use Hugging Face
+Inference Providers locally, set these values in the root `.env` file or in the
+backend service environment:
+
+```dotenv
+LLM_PROVIDER=huggingface
+HF_TOKEN=<your Hugging Face token>
+HF_BASE_URL=https://router.huggingface.co/v1
+HF_MODEL=Qwen/Qwen3.5-9B
+```
+
+Keep `HF_TOKEN` secret and configure it only on the backend. The same provider setting
+also routes chat agent, tool-calling agent, unified agent and RAG answer generation.
+RAG embeddings remain controlled separately by `EMBEDDING_PROVIDER` and its model/key.
+For local Ollama, set `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL` and `OLLAMA_MODEL`.
+Set `MONITORING_API_KEY` in the root `.env` file to pass it into the backend and enable
 `GET /agent/metrics`; send it in the `X-Monitoring-Key` header. Missing
 configuration returns 503 and an invalid key returns 401.
 

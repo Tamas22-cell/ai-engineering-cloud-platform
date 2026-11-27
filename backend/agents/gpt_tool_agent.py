@@ -10,7 +10,7 @@ from langchain_core.tools import tool
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from agents.llm_client import create_llm_client
+from agents.llm_client import create_huggingface_client, create_llm_client
 from agents.tools.calculator import add_numbers, multiply_numbers
 from core.config import settings
 
@@ -219,6 +219,9 @@ async def call_model(state: MessagesState):
     if provider == "openai":
         return await call_openai_model(state)
 
+    if provider == "huggingface":
+        return await call_huggingface_model(state)
+
     raise RuntimeError("Unsupported LLM provider")
 
 
@@ -395,6 +398,91 @@ async def call_openai_model(state: MessagesState):
         "messages": [
             AIMessage(
                 content="\n".join(texts),
+                tool_calls=tool_calls,
+            )
+        ]
+    }
+
+
+async def call_huggingface_model(state: MessagesState):
+    client = create_huggingface_client()
+    messages = [{"role": "system", "content": SYSTEM_INSTRUCTIONS}]
+
+    for message in state["messages"]:
+        if isinstance(message, HumanMessage):
+            messages.append({"role": "user", "content": str(message.content)})
+        elif isinstance(message, AIMessage):
+            assistant_message = {
+                "role": "assistant",
+                "content": str(message.content or ""),
+            }
+            if message.tool_calls:
+                assistant_message["tool_calls"] = [
+                    {
+                        "id": call["id"],
+                        "type": "function",
+                        "function": {
+                            "name": call["name"],
+                            "arguments": json.dumps(call["args"]),
+                        },
+                    }
+                    for call in message.tool_calls
+                ]
+            messages.append(assistant_message)
+        elif isinstance(message, ToolMessage):
+            messages.append({
+                "role": "tool",
+                "tool_call_id": message.tool_call_id,
+                "content": str(message.content),
+            })
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": definition["name"],
+                "description": definition["description"],
+                "parameters": definition["parameters"],
+            },
+        }
+        for definition in TOOL_DEFINITIONS
+    ]
+
+    response = await client.chat.completions.create(
+        model=settings.hf_model,
+        messages=messages,
+        tools=tools,
+        tool_choice="auto",
+        max_tokens=300,
+    )
+    choice = response.choices[0].message
+    tool_calls = []
+
+    for index, call in enumerate(choice.tool_calls or []):
+        arguments = call.function.arguments or "{}"
+        if isinstance(arguments, str):
+            arguments = json.loads(arguments)
+        tool_calls.append({
+            "name": call.function.name,
+            "args": arguments,
+            "id": call.id or f"huggingface-call-{index}",
+            "type": "tool_call",
+        })
+
+    usage = response.usage
+    if usage is not None:
+        structlog.get_logger().info(
+            "agent_tool_llm_token_usage",
+            model=settings.hf_model,
+            input_tokens=usage.prompt_tokens,
+            output_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
+        )
+
+    return {
+        "messages": [
+            AIMessage(
+                content=choice.content or "",
                 tool_calls=tool_calls,
             )
         ]

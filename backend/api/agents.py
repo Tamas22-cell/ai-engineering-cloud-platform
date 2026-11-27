@@ -5,6 +5,7 @@ from openai import AuthenticationError, PermissionDeniedError, RateLimitError, A
 
 from agents.gpt_tool_agent import run_gpt_tool_agent
 from fastapi import Depends, HTTPException
+from core.config import settings
 from core.dependencies import get_current_user
 from core.rate_limit import rate_limit
 from agents.llm_agent import llm_agent
@@ -42,6 +43,9 @@ async def llm_chat(
     data: ChatRequest,
     user = Depends(get_current_user),
 ):
+    provider = settings.llm_provider.lower()
+    provider_name = "Hugging Face" if provider == "huggingface" else "OpenAI"
+    credential_name = "HF_TOKEN" if provider == "huggingface" else "OPENAI_API_KEY"
     try:
         result = await asyncio.wait_for(
             llm_agent.ainvoke({
@@ -52,23 +56,45 @@ async def llm_chat(
         )
         return ChatResponse(response=result["response"])
     except AuthenticationError:
-        logger.error("llm_agent_auth_failed")
-        raise HTTPException(status_code=503, detail="OpenAI API authentication failed. Check OPENAI_API_KEY on Render.")
+        logger.error("llm_agent_auth_failed", provider=provider)
+        raise HTTPException(
+            status_code=503,
+            detail=f"{provider_name} authentication failed. Check {credential_name} on Render.",
+        )
     except PermissionDeniedError:
-        logger.error("llm_agent_permission_denied")
-        raise HTTPException(status_code=503, detail="OpenAI project does not permit this model or operation.")
+        logger.error("llm_agent_permission_denied", provider=provider)
+        raise HTTPException(
+            status_code=503,
+            detail=f"{provider_name} does not permit this model or operation.",
+        )
     except RateLimitError:
-        logger.warning("llm_agent_rate_limited")
-        raise HTTPException(status_code=503, detail="OpenAI rate limit or API quota reached. Check API billing and usage.")
+        logger.warning("llm_agent_rate_limited", provider=provider)
+        raise HTTPException(
+            status_code=503,
+            detail=f"{provider_name} rate limit or API quota reached. Check provider billing and usage.",
+        )
     except APIConnectionError:
-        logger.error("llm_agent_connection_error")
-        raise HTTPException(status_code=503, detail="Cannot connect to OpenAI API.")
+        logger.error("llm_agent_connection_error", provider=provider)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Cannot connect to {provider_name} API.",
+        )
     except APIStatusError as exc:
-        logger.error("llm_agent_api_status", status_code=exc.status_code)
-        raise HTTPException(status_code=503, detail=f"OpenAI API returned HTTP {exc.status_code}.")
+        logger.error(
+            "llm_agent_api_status",
+            provider=provider,
+            status_code=exc.status_code,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"{provider_name} API returned HTTP {exc.status_code}.",
+        )
     except RuntimeError:
-        logger.error("llm_agent_not_configured")
-        raise HTTPException(status_code=503, detail="OpenAI API key is not configured on Render.")
+        logger.error("llm_agent_not_configured", provider=provider)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Configure {credential_name} on Render.",
+        )
     except TimeoutError:
         logger.warning("llm_agent_timeout", timeout_seconds=30)
         raise HTTPException(status_code=504, detail="LLM request timed out")
